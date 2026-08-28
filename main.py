@@ -23,7 +23,7 @@ from typing import List, Optional
 import psutil
 from fastapi import FastAPI, WebSocket, WebSocketDisconnect
 from fastapi.staticfiles import StaticFiles
-from fastapi.responses import FileResponse, JSONResponse
+from fastapi.responses import FileResponse, JSONResponse, RedirectResponse
 
 app = FastAPI(title="AI-DAX Lite Dashboard", version="2.0")
 
@@ -211,10 +211,5 @@ app.mount("/static", StaticFiles(directory=STATIC_DIR), name="static")
 
 
 @app.get("/")
-async def root():
-    """Serve the main dashboard page."""
-    index_path = os.path.join(STATIC_DIR, 'index.html')
-    if os.path.exists(index_path):
-        return FileResponse(index_path)
-    return JSONResponse({'error': 'Frontend not found. Check static/index.html'},
-                        status_code=404)
+def read_root():
+    return RedirectResponse(url="/static/index.html")
