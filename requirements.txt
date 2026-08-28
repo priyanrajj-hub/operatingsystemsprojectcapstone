@@ -1,5 +1,7 @@
 psutil
-streamlit
-pandas
 numpy
 scikit-learn
+fastapi
+uvicorn[standard]
+scipy
+pandas
