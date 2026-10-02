@@ -373,7 +373,7 @@
     let demoMode = false;
     let demoInterval = null;
 
-    function setConnected(connected, isDemo=false) {
+    function setConnected(connected, isDemo = false) {
         if (connected && !isDemo) {
             pulseRing.classList.add('active');
             pulseRing.style.background = '#00f2fe';
@@ -399,42 +399,42 @@
         if (demoMode) return;
         demoMode = true;
         setConnected(true, true);
-        
+
         let fakeHist = [];
         let decCount = 450;
         let cumulativeRegret = 1.25;
-        
+
         console.log("AI-DAX Lite fallback: Initializing Demo Simulation Engine");
-        
+
         if (demoInterval) clearInterval(demoInterval);
         demoInterval = setInterval(() => {
             const timeNow = Date.now() / 1000;
             const cpuTotal = 25 + Math.random() * 60;
-            const coreData = Array.from({length: 8}, () => Math.random() * 90);
-            
+            const coreData = Array.from({ length: 8 }, () => Math.random() * 90);
+
             const numHeavy = Math.floor(Math.random() * 2) + 2;
             const numLight = 4 - numHeavy;
-            
+
             decCount += 4;
             const currRegret = Math.max(0.01, Math.random() * 0.1);
             cumulativeRegret += currRegret;
-            
+
             const fakeData = {
                 system: {
                     cpu_percent_overall: cpuTotal,
-                    memory_percent: 42 + Math.random()*5,
-                    cpu_freq_current: 3100 + Math.random()*200,
+                    memory_percent: 42 + Math.random() * 5,
+                    cpu_freq_current: 3100 + Math.random() * 200,
                     cpu_count_physical: 4,
                     cpu_count_logical: 8,
-                    memory_used_gb: (6.5 + Math.random()*0.5).toFixed(1),
+                    memory_used_gb: (6.5 + Math.random() * 0.5).toFixed(1),
                     memory_total_gb: 16.0,
                     cpu_percent_per_core: coreData
                 },
                 processes: [
-                    { pid: 1024, action: 'P', decision_source: 'bandit', cpu_percent: 80 + Math.random()*15, vol_ctx_rate: 12, invol_ctx_rate: 15, confidence_ucb: 1.4, reward: -0.15, true_type: 'Heavy' },
-                    { pid: 2048, action: 'P', decision_source: 'bandit', cpu_percent: 85 + Math.random()*10, vol_ctx_rate: 8, invol_ctx_rate: 10, confidence_ucb: 1.5, reward: -0.10, true_type: 'Heavy' },
-                    { pid: 3012, action: 'E', decision_source: 'bandit', cpu_percent: 3 + Math.random()*5, vol_ctx_rate: 450, invol_ctx_rate: 1, confidence_ucb: 0.3, reward: -0.01, true_type: 'Light' },
-                    { pid: 4056, action: 'E', decision_source: 'bandit', cpu_percent: 4 + Math.random()*4, vol_ctx_rate: 610, invol_ctx_rate: 2, confidence_ucb: 0.4, reward: -0.02, true_type: 'Light' }
+                    { pid: 1024, action: 'P', decision_source: 'bandit', cpu_percent: 80 + Math.random() * 15, vol_ctx_rate: 12, invol_ctx_rate: 15, confidence_ucb: 1.4, reward: -0.15, true_type: 'Heavy' },
+                    { pid: 2048, action: 'P', decision_source: 'bandit', cpu_percent: 85 + Math.random() * 10, vol_ctx_rate: 8, invol_ctx_rate: 10, confidence_ucb: 1.5, reward: -0.10, true_type: 'Heavy' },
+                    { pid: 3012, action: 'E', decision_source: 'bandit', cpu_percent: 3 + Math.random() * 5, vol_ctx_rate: 450, invol_ctx_rate: 1, confidence_ucb: 0.3, reward: -0.01, true_type: 'Light' },
+                    { pid: 4056, action: 'E', decision_source: 'bandit', cpu_percent: 4 + Math.random() * 4, vol_ctx_rate: 610, invol_ctx_rate: 2, confidence_ucb: 0.4, reward: -0.02, true_type: 'Light' }
                 ].slice(0, numHeavy + numLight),
                 bandit: {
                     heuristic_count: 50,
@@ -447,21 +447,27 @@
                     beta_reward: 0.3
                 }
             };
-            
-            const pCPU = (cpuTotal * 0.8) + (Math.random()*10);
-            const eCPU = (cpuTotal * 0.2) + (Math.random()*10);
+
+            const pCPU = (cpuTotal * 0.8) + (Math.random() * 10);
+            const eCPU = (cpuTotal * 0.2) + (Math.random() * 10);
             const histEntry = { timestamp: timeNow, cpu_percent: pCPU, action: 'P' };
             const histEntryE = { timestamp: timeNow, cpu_percent: eCPU, action: 'E' };
             fakeHist.push(histEntry);
             fakeHist.push(histEntryE);
             if (fakeHist.length > 200) fakeHist.splice(0, 2);
-            
+
             fakeData.history_tail = fakeHist;
             renderAll(fakeData);
         }, 1500);
     }
 
     function connectWS() {
+        if (window.location.hostname.includes("vercel.app")) {
+            console.warn("Vercel deployment detected. Bypassing Serverless frozen state.");
+            startDemoSimulation();
+            return;
+        }
+
         const proto = location.protocol === 'https:' ? 'wss:' : 'ws:';
         ws = new WebSocket(`${proto}//${location.host}/ws/live`);
 
@@ -485,7 +491,7 @@
         if (demoMode) return;
         try {
             const [liveR, histR] = await Promise.all([
-                fetch('/api/live').then(r => { if(!r.ok) throw new Error(); return r.json() }),
+                fetch('/api/live').then(r => { if (!r.ok) throw new Error(); return r.json() }),
                 fetch('/api/history?n=100').then(r => r.json()),
             ]);
             liveR.history_tail = histR.history || [];
