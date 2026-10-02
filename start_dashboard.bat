@@ -1,0 +1,6 @@
+@echo off
+echo Starting AI-DAX Lite Premium Dashboard Stack...
+start /B python workload_generator.py
+start /B python ai_scheduler.py
+echo Starting web server on http://localhost:8000...
+python -m uvicorn main:app --host 0.0.0.0 --port 8000

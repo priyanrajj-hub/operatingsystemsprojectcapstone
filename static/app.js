@@ -88,8 +88,8 @@
                 {
                     label: 'P-Core (Heavy)',
                     data: [],
-                    borderColor: '#818cf8',
-                    backgroundColor: 'rgba(129,140,248,0.06)',
+                    borderColor: '#00c6ff',
+                    backgroundColor: 'rgba(0,198,255,0.06)',
                     fill: true,
                     tension: 0.4,
                     borderWidth: 2,
@@ -99,8 +99,8 @@
                 {
                     label: 'E-Core (Light)',
                     data: [],
-                    borderColor: '#06b6d4',
-                    backgroundColor: 'rgba(6,182,212,0.06)',
+                    borderColor: '#a18cd1',
+                    backgroundColor: 'rgba(161,140,209,0.06)',
                     fill: true,
                     tension: 0.4,
                     borderWidth: 2,
@@ -131,11 +131,11 @@
             datasets: [{
                 label: 'Regret',
                 data: [],
-                borderColor: '#34d399',
+                borderColor: '#00f2fe',
                 backgroundColor: (ctx) => {
                     const g = ctx.chart.ctx.createLinearGradient(0, 0, 0, 220);
-                    g.addColorStop(0, 'rgba(52,211,153,0.1)');
-                    g.addColorStop(1, 'rgba(52,211,153,0)');
+                    g.addColorStop(0, 'rgba(0,242,254,0.1)');
+                    g.addColorStop(1, 'rgba(0,242,254,0)');
                     return g;
                 },
                 fill: true,
@@ -202,9 +202,9 @@
     // Core Heatmap Color
     // ─────────────────────────────────────────────
     function heatColor(pct) {
-        if (pct < 20) return { bg: 'rgba(129,140,248,0.08)', bd: 'rgba(129,140,248,0.1)' };
-        if (pct < 40) return { bg: 'rgba(6,182,212,0.12)', bd: 'rgba(6,182,212,0.15)' };
-        if (pct < 60) return { bg: 'rgba(52,211,153,0.15)', bd: 'rgba(52,211,153,0.18)' };
+        if (pct < 20) return { bg: 'rgba(0,198,255,0.08)', bd: 'rgba(0,198,255,0.1)' };
+        if (pct < 40) return { bg: 'rgba(161,140,209,0.12)', bd: 'rgba(161,140,209,0.15)' };
+        if (pct < 60) return { bg: 'rgba(0,242,254,0.15)', bd: 'rgba(0,242,254,0.18)' };
         if (pct < 80) return { bg: 'rgba(251,191,36,0.18)', bd: 'rgba(251,191,36,0.22)' };
         return { bg: 'rgba(248,113,113,0.22)', bd: 'rgba(248,113,113,0.28)' };
     }
@@ -303,10 +303,10 @@
             const isP = (p.action || '').includes('P');
             const isBand = (p.decision_source || '') === 'bandit';
             const reward = parseFloat(p.reward || 0);
-            const rwdColor = reward >= 0 ? '#34d399' : '#f87171';
+            const rwdColor = reward >= 0 ? '#00f2fe' : '#f87171';
             return `<tr>
                 <td>${p.pid || '—'}</td>
-                <td style="color:${isP ? '#818cf8' : '#06b6d4'}">${p.true_type || '—'}</td>
+                <td style="color:${isP ? '#00c6ff' : '#a18cd1'}">${p.true_type || '—'}</td>
                 <td><span class="chip chip--${isP ? 'p' : 'e'}">${p.action || '—'}</span></td>
                 <td><span class="chip chip--${isBand ? 'band' : 'heur'}">${p.decision_source || '—'}</span></td>
                 <td>${parseFloat(p.cpu_percent || 0).toFixed(1)}%</td>
@@ -373,10 +373,10 @@
 
     function setConnected(connected) {
         if (connected) {
-            pulseRing.classList.add('live');
+            pulseRing.classList.add('active');
             statusLabel.textContent = 'Live';
         } else {
-            pulseRing.classList.remove('live');
+            pulseRing.classList.remove('active');
             statusLabel.textContent = 'Reconnecting';
         }
     }

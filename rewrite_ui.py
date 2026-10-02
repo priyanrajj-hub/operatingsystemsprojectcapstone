@@ -1,4 +1,233 @@
-/* AI-DAX Lite v3 - Premium Deep Space Glassmorphism Theme */
+import os
+
+html_content = """<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AI-DAX Lite • CPU Governor</title>
+    <meta name="description" content="AI-DAX Lite: Adaptive CPU Governor — Real-time System Monitor">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700;800&family=Space+Mono:wght@400;700&display=swap" rel="stylesheet">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.4/dist/chart.umd.min.js"></script>
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <div class="ambient-glow glow-1"></div>
+    <div class="ambient-glow glow-2"></div>
+    <!-- Animated background canvas -->
+    <canvas id="bgCanvas"></canvas>
+
+    <header class="header glass-panel">
+        <div class="header__left">
+            <div class="header__logo">
+                <div class="logo-ring">
+                    <svg viewBox="0 0 36 36" class="logo-svg">
+                        <circle cx="18" cy="18" r="15.5" fill="none" stroke="url(#logoGrad)" stroke-width="2" stroke-dasharray="80 20" class="logo-orbit" />
+                        <circle cx="18" cy="18" r="4" fill="#fff" />
+                        <defs>
+                            <linearGradient id="logoGrad" x1="0" y1="0" x2="1" y2="1">
+                                <stop offset="0%" stop-color="#00f2fe" />
+                                <stop offset="100%" stop-color="#4facfe" />
+                            </linearGradient>
+                        </defs>
+                    </svg>
+                </div>
+                <div>
+                    <h1 class="header__title">AI-DAX<span class="gradient-text">Lite</span></h1>
+                    <p class="header__sub">Adaptive CPU Governor</p>
+                </div>
+            </div>
+        </div>
+        <div class="header__right">
+            <div class="header__indicator glass-badge">
+                <div class="pulse-ring" id="pulseRing"></div>
+                <span id="statusLabel">Connecting</span>
+            </div>
+            <div class="header__clock glass-badge" id="clock">--:--:--</div>
+        </div>
+    </header>
+
+    <main class="main">
+        <section class="section gauges-section">
+            <div class="gauge-card glass-panel" id="cpuGaugeCard">
+                <div class="gauge-ring-wrap">
+                    <svg viewBox="0 0 120 120" class="gauge-svg">
+                        <circle cx="60" cy="60" r="52" fill="none" stroke="rgba(255,255,255,0.03)" stroke-width="8" />
+                        <circle cx="60" cy="60" r="52" fill="none" stroke="url(#cpuGrad)" stroke-width="8" stroke-dasharray="326.7" stroke-dashoffset="326.7" stroke-linecap="round" class="gauge-arc glow-arc" id="cpuArc" transform="rotate(-90 60 60)" />
+                        <defs>
+                            <linearGradient id="cpuGrad" x1="0" y1="0" x2="1" y2="1">
+                                <stop offset="0%" stop-color="#00c6ff" />
+                                <stop offset="100%" stop-color="#0072ff" />
+                            </linearGradient>
+                        </defs>
+                    </svg>
+                    <div class="gauge-center">
+                        <span class="gauge-value" id="cpuValue">0</span>
+                        <span class="gauge-unit">%</span>
+                    </div>
+                </div>
+                <div class="gauge-label">CPU Utilisation</div>
+                <div class="gauge-detail" id="cpuDetail">— cores</div>
+            </div>
+
+            <div class="gauge-card glass-panel" id="memGaugeCard">
+                <div class="gauge-ring-wrap">
+                    <svg viewBox="0 0 120 120" class="gauge-svg">
+                        <circle cx="60" cy="60" r="52" fill="none" stroke="rgba(255,255,255,0.03)" stroke-width="8" />
+                        <circle cx="60" cy="60" r="52" fill="none" stroke="url(#memGrad)" stroke-width="8" stroke-dasharray="326.7" stroke-dashoffset="326.7" stroke-linecap="round" class="gauge-arc glow-arc" id="memArc" transform="rotate(-90 60 60)" />
+                        <defs>
+                            <linearGradient id="memGrad" x1="0" y1="0" x2="1" y2="1">
+                                <stop offset="0%" stop-color="#d4145a" />
+                                <stop offset="100%" stop-color="#fbb03b" />
+                            </linearGradient>
+                        </defs>
+                    </svg>
+                    <div class="gauge-center">
+                        <span class="gauge-value" id="memValue">0</span>
+                        <span class="gauge-unit">%</span>
+                    </div>
+                </div>
+                <div class="gauge-label">Memory</div>
+                <div class="gauge-detail" id="memDetail">— GB</div>
+            </div>
+
+            <div class="info-stack">
+                <div class="info-tile glass-panel">
+                    <div class="info-tile__header">
+                        <div class="info-tile__dot" style="background:#00c6ff; box-shadow: 0 0 10px #00c6ff;"></div>
+                        Monitored Processes
+                    </div>
+                    <div class="info-tile__value" id="procCount">0</div>
+                    <div class="info-tile__sub" id="procSplit">—</div>
+                </div>
+                <div class="info-tile glass-panel">
+                    <div class="info-tile__header">
+                        <div class="info-tile__dot" style="background:#a18cd1; box-shadow: 0 0 10px #a18cd1;"></div>
+                        Decision Engine
+                    </div>
+                    <div class="info-tile__value" id="engineLabel">—</div>
+                    <div class="info-tile__sub" id="engineDetail">—</div>
+                </div>
+                <div class="info-tile glass-panel">
+                    <div class="info-tile__header">
+                        <div class="info-tile__dot" style="background:#00f2fe; box-shadow: 0 0 10px #00f2fe;"></div>
+                        Regret Tracking
+                    </div>
+                    <div class="info-tile__value" id="regretValue">0.00</div>
+                    <div class="info-tile__sub" id="regretDetail">cumulative</div>
+                </div>
+            </div>
+        </section>
+
+        <section class="section glass-panel">
+            <div class="section-head">
+                <h2>Core Topology</h2>
+                <p>Real-time per-core utilisation heatmap</p>
+            </div>
+            <div class="core-heatmap" id="coreHeatmap"></div>
+        </section>
+
+        <section class="section charts-section">
+            <div class="chart-panel glass-panel">
+                <div class="section-head">
+                    <h2>Load Distribution</h2>
+                    <p>P-Core vs E-Core average CPU load over time</p>
+                </div>
+                <div class="chart-wrap">
+                    <canvas id="loadChart"></canvas>
+                </div>
+            </div>
+            <div class="chart-panel chart-panel--narrow glass-panel">
+                <div class="section-head">
+                    <h2>Learning Curve</h2>
+                    <p>Cumulative regret — lower is better</p>
+                </div>
+                <div class="chart-wrap">
+                    <canvas id="regretChart"></canvas>
+                </div>
+            </div>
+        </section>
+
+        <section class="section glass-panel">
+            <div class="section-head">
+                <h2>Bandit Intelligence</h2>
+                <p>LinUCB decision-making breakdown</p>
+            </div>
+            <div class="bandit-grid">
+                <div class="bandit-bar-wrap">
+                    <div class="bandit-bar-label">
+                        <span>Heuristic fallback</span>
+                        <span class="bandit-bar-pct" id="heurPctLabel">0%</span>
+                    </div>
+                    <div class="bandit-bar-track">
+                        <div class="bandit-bar-fill bandit-bar-fill--heur" id="heurBar" style="width:0%; box-shadow: 0 0 10px rgba(161, 140, 209, 0.8);"></div>
+                    </div>
+                </div>
+                <div class="bandit-bar-wrap">
+                    <div class="bandit-bar-label">
+                        <span>Bandit (LinUCB)</span>
+                        <span class="bandit-bar-pct" id="bandPctLabel">0%</span>
+                    </div>
+                    <div class="bandit-bar-track">
+                        <div class="bandit-bar-fill bandit-bar-fill--band" id="bandBar" style="width:0%; box-shadow: 0 0 10px rgba(0, 198, 255, 0.8);"></div>
+                    </div>
+                </div>
+                <div class="bandit-meta">
+                    <div><span class="bandit-meta-label">Total Decisions</span><span class="bandit-meta-value glow-text" id="totalDec">0</span></div>
+                    <div><span class="bandit-meta-label">α (ctx weight)</span><span class="bandit-meta-value glow-text" id="alphaVal">0.7</span></div>
+                    <div><span class="bandit-meta-label">β (energy weight)</span><span class="bandit-meta-value glow-text" id="betaVal">0.3</span></div>
+                </div>
+            </div>
+        </section>
+
+        <section class="section glass-panel">
+            <div class="section-head" style="display: flex; justify-content: space-between; align-items: flex-end;">
+                <div>
+                    <h2>Process Monitor</h2>
+                    <p>Live task routing & performance metrics</p>
+                </div>
+                <button class="reset-btn glass-btn" id="resetBtn">
+                    <svg viewBox="0 0 20 20" fill="currentColor" width="14" height="14">
+                        <path fill-rule="evenodd" d="M15.312 11.424a5.5 5.5 0 0 1-9.378 2.202l-1.36 1.36A7.002 7.002 0 0 0 17.27 10.5H15.5a.5.5 0 0 0-.188.924zM4.688 8.576a5.5 5.5 0 0 1 9.378-2.202l1.36-1.36A7.002 7.002 0 0 0 2.73 9.5H4.5a.5.5 0 0 0 .188-.924z" clip-rule="evenodd" />
+                    </svg>
+                    Reset Affinities
+                </button>
+            </div>
+            <div class="table-wrap">
+                <table>
+                    <thead>
+                        <tr>
+                            <th>PID</th>
+                            <th>Type</th>
+                            <th>Routed</th>
+                            <th>Source</th>
+                            <th>CPU</th>
+                            <th>Vol Ctx/s</th>
+                            <th>Invol Ctx/s</th>
+                            <th>UCB</th>
+                            <th>Reward</th>
+                        </tr>
+                    </thead>
+                    <tbody id="tableBody">
+                        <tr>
+                            <td colspan="9" class="table-empty">Waiting for telemetry…</td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+        </section>
+
+    </main>
+
+    <footer class="footer">AI-DAX Lite v3 · Premium Glassmorphic Intelligence · Research Prototype</footer>
+
+    <script src="app.js"></script>
+</body>
+</html>"""
+
+css_content = """/* AI-DAX Lite v3 - Premium Deep Space Glassmorphism Theme */
 
 :root {
     --bg-base: #02040a;
@@ -297,3 +526,12 @@ tbody tr:hover td { background: rgba(255,255,255,0.04); }
 ::-webkit-scrollbar-track { background: var(--bg-base); }
 ::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.1); border-radius: 3px; }
 ::-webkit-scrollbar-thumb:hover { background: rgba(255,255,255,0.2); }
+"""
+
+with open("static/index.html", "w", encoding="utf-8") as f:
+    f.write(html_content)
+
+with open("static/style.css", "w", encoding="utf-8") as f:
+    f.write(css_content)
+
+print("Rewrote index.html and style.css successfully!")
