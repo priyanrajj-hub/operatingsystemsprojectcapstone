@@ -1,12 +1,5 @@
 {
-    "rewrites": [
-        {
-            "source": "/",
-            "destination": "/static/index.html"
-        },
-        {
-            "source": "/:path*",
-            "destination": "/static/:path*"
-        }
-    ]
+    "framework": null,
+    "buildCommand": null,
+    "outputDirectory": "static"
 }
