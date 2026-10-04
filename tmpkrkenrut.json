@@ -1,0 +1,1 @@
+{"total_decisions": 528, "heuristic_count": 80, "bandit_count": 452, "cumulative_regret": 27.3, "alpha_reward": 0.7, "beta_reward": 0.3, "arm_params": {"total_decisions": 528, "arm_0_theta": [0.0, -0.015135446371844106, 0.0, 0.26664655875183585, 0.09029312571945519], "arm_1_theta": [0.0, -0.000302697978858495, 0.0, 0.030533422303030845, 0.016764654600243463]}}

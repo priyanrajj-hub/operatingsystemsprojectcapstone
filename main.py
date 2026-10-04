@@ -31,6 +31,9 @@ import asyncio
 
 app = FastAPI(title="AI-DAX Lite Dashboard", version="2.0")
 
+from dotenv import load_dotenv
+load_dotenv()
+
 # Setup Gemini API (Add your GEMINI_API_KEY environment variable)
 API_KEY = os.environ.get("GEMINI_API_KEY", "")
 if API_KEY:
@@ -197,13 +200,16 @@ async def api_aizen(payload: TelemetryPayload):
         return JSONResponse({"health": "Aizen Offline: No API Key", "process": "Please set the GEMINI_API_KEY environment variable", "future": "Restart the Python backend after setting the key."})
     prompt = f"You are 'Aizen', a deep-system OS kernel AI. CPU: {payload.cpu_percent_overall}% Memory: {payload.memory_percent}%. LinUCB acts: {payload.total_decisions} Regret: {payload.regret}\nProvide 3 concise insights: 1. Computer Health 2. Process Management Insights 3. Future Use & What can be done.\nReturn EXACTLY a JSON array with 3 string elements: [\"health\", \"process\", \"future\"]. Respond internally in English."
     try:
-        model = genai.GenerativeModel("gemini-1.5-flash")
+        model = genai.GenerativeModel("gemini-flash-lite-latest")
         resp = await asyncio.to_thread(model.generate_content, prompt)
         import ast
         val = ast.literal_eval(resp.text.strip().strip("```json").strip("```").strip())
         return JSONResponse({"health": val[0], "process": val[1], "future": val[2]})
     except Exception as e:
-        return JSONResponse({"health": "Error running Aizen AI", "process": str(e)[:50], "future": ""})
+        err_str = str(e)
+        if "429" in err_str or "quota" in err_str.lower():
+            return JSONResponse({"health": "System nominal (AI Cooldown Active)", "process": "Aizen intelligence is temporarily suppressing queries to preserve the hardware compute API quota limit.", "future": "Predictive analytics will automatically resume shortly once the developer cycle recovers."})
+        return JSONResponse({"health": "Error running Aizen AI", "process": err_str[:120], "future": ""})
 
 @app.post("/api/jarvis")
 async def api_jarvis(payload: TelemetryPayload):
@@ -211,7 +217,7 @@ async def api_jarvis(payload: TelemetryPayload):
         return JSONResponse({"response": "Speech recognition offline due to missing API key."})
     prompt = f"You are Jarvis, a multilingual AI assistant. User says: '{payload.voice_query}'. Language requested: '{payload.language}'. Current CPU: {payload.cpu_percent_overall}%. Respond concisely in '{payload.language}' exclusively."
     try:
-        model = genai.GenerativeModel("gemini-1.5-flash")
+        model = genai.GenerativeModel("gemini-flash-lite-latest")
         resp = await asyncio.to_thread(model.generate_content, prompt)
         return JSONResponse({"response": resp.text.strip()})
     except Exception as e:
