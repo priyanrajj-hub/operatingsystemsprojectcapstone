@@ -1,0 +1,6 @@
+*.py
+requirements.txt
+*.bat
+*.sh
+.env*
+__pycache__/
