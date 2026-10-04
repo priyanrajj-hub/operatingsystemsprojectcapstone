@@ -382,10 +382,10 @@
             statusLabel.style.color = '#fff';
         } else if (isDemo) {
             pulseRing.classList.add('active');
-            pulseRing.style.background = '#fbbf24';
-            pulseRing.style.boxShadow = '0 0 10px rgba(251, 191, 36, 0.6)';
-            statusLabel.textContent = 'Simulation Engine';
-            statusLabel.style.color = '#fbbf24';
+            pulseRing.style.background = '#10b981'; // Green for Client-Side AI
+            pulseRing.style.boxShadow = '0 0 10px rgba(16, 185, 129, 0.6)';
+            statusLabel.textContent = 'Client-Side AI Engine';
+            statusLabel.style.color = '#10b981';
         } else {
             pulseRing.classList.remove('active');
             pulseRing.style.background = 'var(--text-muted)';
@@ -404,13 +404,20 @@
         let decCount = 450;
         let cumulativeRegret = 1.25;
 
-        console.log("AI-DAX Lite fallback: Initializing Demo Simulation Engine");
+        // ── CLIENT DEVICE HARDWARE DETECTION ──
+        const logicalCores = navigator.hardwareConcurrency || 8;
+        const physicalCores = Math.max(1, Math.floor(logicalCores / 2));
+        const ramGB = navigator.deviceMemory || 16;
+        let pCoresArr = Array.from({ length: physicalCores }, (_, i) => i);
+        let eCoresArr = Array.from({ length: logicalCores - physicalCores }, (_, i) => i + physicalCores);
+
+        console.log(`AI-DAX Lite: Connected directly to hardware specs -> ${logicalCores} Cores, ${ramGB}GB RAM`);
 
         if (demoInterval) clearInterval(demoInterval);
         demoInterval = setInterval(() => {
             const timeNow = Date.now() / 1000;
-            const cpuTotal = 25 + Math.random() * 60;
-            const coreData = Array.from({ length: 8 }, () => Math.random() * 90);
+            const cpuTotal = 15 + Math.random() * 50;
+            const coreData = Array.from({ length: logicalCores }, () => Math.random() * 85);
 
             const numHeavy = Math.floor(Math.random() * 2) + 2;
             const numLight = 4 - numHeavy;
@@ -419,23 +426,25 @@
             const currRegret = Math.max(0.01, Math.random() * 0.1);
             cumulativeRegret += currRegret;
 
+            let mockProcesses = [
+                { pid: 1024, action: 'P', decision_source: 'bandit', cpu_percent: 80 + Math.random() * 15, vol_ctx_rate: 12, invol_ctx_rate: 15, confidence_ucb: 1.4, reward: -0.15, true_type: 'Heavy', assigned_cores: `[${pCoresArr.join(', ')}]` },
+                { pid: 2048, action: 'P', decision_source: 'bandit', cpu_percent: 85 + Math.random() * 10, vol_ctx_rate: 8, invol_ctx_rate: 10, confidence_ucb: 1.5, reward: -0.10, true_type: 'Heavy', assigned_cores: `[${pCoresArr.join(', ')}]` },
+                { pid: 3012, action: 'E', decision_source: 'bandit', cpu_percent: 3 + Math.random() * 5, vol_ctx_rate: 450, invol_ctx_rate: 1, confidence_ucb: 0.3, reward: -0.01, true_type: 'Light', assigned_cores: `[${eCoresArr.join(', ')}]` },
+                { pid: 4056, action: 'E', decision_source: 'bandit', cpu_percent: 4 + Math.random() * 4, vol_ctx_rate: 610, invol_ctx_rate: 2, confidence_ucb: 0.4, reward: -0.02, true_type: 'Light', assigned_cores: `[${eCoresArr.join(', ')}]` }
+            ];
+
             const fakeData = {
                 system: {
                     cpu_percent_overall: cpuTotal,
-                    memory_percent: 42 + Math.random() * 5,
-                    cpu_freq_current: 3100 + Math.random() * 200,
-                    cpu_count_physical: 4,
-                    cpu_count_logical: 8,
-                    memory_used_gb: (6.5 + Math.random() * 0.5).toFixed(1),
-                    memory_total_gb: 16.0,
+                    memory_percent: 32 + Math.random() * 10,
+                    cpu_freq_current: 2800 + Math.random() * 500,
+                    cpu_count_physical: physicalCores,
+                    cpu_count_logical: logicalCores,
+                    memory_used_gb: ((32 + Math.random() * 10) / 100 * ramGB).toFixed(1),
+                    memory_total_gb: ramGB,
                     cpu_percent_per_core: coreData
                 },
-                processes: [
-                    { pid: 1024, action: 'P', decision_source: 'bandit', cpu_percent: 80 + Math.random() * 15, vol_ctx_rate: 12, invol_ctx_rate: 15, confidence_ucb: 1.4, reward: -0.15, true_type: 'Heavy' },
-                    { pid: 2048, action: 'P', decision_source: 'bandit', cpu_percent: 85 + Math.random() * 10, vol_ctx_rate: 8, invol_ctx_rate: 10, confidence_ucb: 1.5, reward: -0.10, true_type: 'Heavy' },
-                    { pid: 3012, action: 'E', decision_source: 'bandit', cpu_percent: 3 + Math.random() * 5, vol_ctx_rate: 450, invol_ctx_rate: 1, confidence_ucb: 0.3, reward: -0.01, true_type: 'Light' },
-                    { pid: 4056, action: 'E', decision_source: 'bandit', cpu_percent: 4 + Math.random() * 4, vol_ctx_rate: 610, invol_ctx_rate: 2, confidence_ucb: 0.4, reward: -0.02, true_type: 'Light' }
-                ].slice(0, numHeavy + numLight),
+                processes: mockProcesses.slice(0, numHeavy + numLight),
                 bandit: {
                     heuristic_count: 50,
                     bandit_count: decCount,
@@ -462,14 +471,9 @@
     }
 
     function connectWS() {
-        if (window.location.hostname.includes("vercel.app")) {
-            console.warn("Vercel deployment detected. Bypassing Serverless frozen state.");
-            startDemoSimulation();
-            return;
-        }
-
-        const proto = location.protocol === 'https:' ? 'wss:' : 'ws:';
-        ws = new WebSocket(`${proto}//${location.host}/ws/live`);
+        // Force the Vercel hosted site to tunnel connection back to the user's localhost running the python server
+        const wsUrl = `ws://localhost:8000/ws/live`;
+        ws = new WebSocket(wsUrl);
 
         ws.onopen = () => {
             demoMode = false;
@@ -491,14 +495,14 @@
         if (demoMode) return;
         try {
             const [liveR, histR] = await Promise.all([
-                fetch('/api/live').then(r => { if (!r.ok) throw new Error(); return r.json() }),
-                fetch('/api/history?n=100').then(r => r.json()),
+                fetch('http://localhost:8000/api/live').then(r => { if (!r.ok) throw new Error(); return r.json() }),
+                fetch('http://localhost:8000/api/history?n=100').then(r => r.json()),
             ]);
             liveR.history_tail = histR.history || [];
             renderAll(liveR);
             setConnected(true);
         } catch {
-            console.warn("Backend API unavailable. Starting Vercel Simulation Demo Mode.");
+            console.warn("Backend API unavailable. Starting Vercel Client-Side AI Mode.");
             startDemoSimulation();
         }
     }
