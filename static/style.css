@@ -297,3 +297,17 @@ tbody tr:hover td { background: rgba(255,255,255,0.04); }
 ::-webkit-scrollbar-track { background: var(--bg-base); }
 ::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.1); border-radius: 3px; }
 ::-webkit-scrollbar-thumb:hover { background: rgba(255,255,255,0.2); }
+
+/* AI Insights & Jarvis Features */
+.aizen-panel { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 1.5rem; padding: 1.5rem; }
+.aizen-card { background: rgba(0, 0, 0, 0.3); border: 1px solid rgba(255, 255, 255, 0.05); border-radius: 12px; padding: 1.25rem; display: flex; flex-direction: column; gap: 0.5rem; }
+.aizen-card h3 { font-size: 0.85rem; color: #a18cd1; text-transform: uppercase; letter-spacing: 0.05em; display: flex; align-items: center; gap: 0.5rem; }
+.aizen-card p { font-size: 0.8rem; color: var(--text-muted); }
+
+.jarvis-orb { position: fixed; bottom: 2rem; right: 2rem; width: 60px; height: 60px; border-radius: 50%; background: radial-gradient(circle at 30% 30%, #00f2fe, #4facfe); box-shadow: 0 0 20px rgba(0, 242, 254, 0.5), inset 0 0 10px rgba(255,255,255,0.5); cursor: pointer; z-index: 1000; display: flex; align-items: center; justify-content: center; transition: all 0.3s var(--ease-out); animation: floatOrb 4s ease-in-out infinite; }
+.jarvis-orb:hover { transform: scale(1.1); box-shadow: 0 0 30px rgba(0, 242, 254, 0.8), inset 0 0 15px rgba(255,255,255,0.8); }
+.jarvis-orb.listening { animation: pulseListen 1s infinite alternate; }
+@keyframes floatOrb { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(-10px); } }
+@keyframes pulseListen { 0% { box-shadow: 0 0 20px #ff4b2b; background: radial-gradient(circle at 30% 30%, #ff4b2b, #d4145a); } 100% { box-shadow: 0 0 40px #ff4b2b; background: radial-gradient(circle at 30% 30%, #ff4b2b, #8a0c36); } }
+.jarvis-icon { width: 30px; height: 30px; fill: white; pointer-events: none; }
+#google_translate_element { position: absolute; top: -60px; right: 0; z-index: 2000; }

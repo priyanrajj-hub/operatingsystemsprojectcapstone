@@ -7,3 +7,5 @@ venv/
 .vscode/
 scheduler_log.csv
 pids.txt
+.vercel
+.env*

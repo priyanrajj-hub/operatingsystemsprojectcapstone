@@ -1,5 +1,6 @@
 <!DOCTYPE html>
 <html lang="en">
+
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -7,10 +8,13 @@
     <meta name="description" content="AI-DAX Lite: Adaptive CPU Governor — Real-time System Monitor">
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700;800&family=Space+Mono:wght@400;700&display=swap" rel="stylesheet">
+    <link
+        href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700;800&family=Space+Mono:wght@400;700&display=swap"
+        rel="stylesheet">
     <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.4/dist/chart.umd.min.js"></script>
     <link rel="stylesheet" href="style.css">
 </head>
+
 <body>
     <div class="ambient-glow glow-1"></div>
     <div class="ambient-glow glow-2"></div>
@@ -22,7 +26,8 @@
             <div class="header__logo">
                 <div class="logo-ring">
                     <svg viewBox="0 0 36 36" class="logo-svg">
-                        <circle cx="18" cy="18" r="15.5" fill="none" stroke="url(#logoGrad)" stroke-width="2" stroke-dasharray="80 20" class="logo-orbit" />
+                        <circle cx="18" cy="18" r="15.5" fill="none" stroke="url(#logoGrad)" stroke-width="2"
+                            stroke-dasharray="80 20" class="logo-orbit" />
                         <circle cx="18" cy="18" r="4" fill="#fff" />
                         <defs>
                             <linearGradient id="logoGrad" x1="0" y1="0" x2="1" y2="1">
@@ -39,6 +44,16 @@
             </div>
         </div>
         <div class="header__right">
+            <div id="google_translate_element" style="position:relative; top:0; margin-right: 1rem; z-index: 2000;">
+            </div>
+            <script type="text/javascript">
+                function googleTranslateElementInit() {
+                    new google.translate.TranslateElement({ pageLanguage: 'en', layout: google.translate.TranslateElement.InlineLayout.SIMPLE }, 'google_translate_element');
+                }
+            </script>
+            <script type="text/javascript"
+                src="//translate.google.com/translate_a/element.js?cb=googleTranslateElementInit"></script>
+
             <div class="header__indicator glass-badge">
                 <div class="pulse-ring" id="pulseRing"></div>
                 <span id="statusLabel">Connecting</span>
@@ -53,7 +68,9 @@
                 <div class="gauge-ring-wrap">
                     <svg viewBox="0 0 120 120" class="gauge-svg">
                         <circle cx="60" cy="60" r="52" fill="none" stroke="rgba(255,255,255,0.03)" stroke-width="8" />
-                        <circle cx="60" cy="60" r="52" fill="none" stroke="url(#cpuGrad)" stroke-width="8" stroke-dasharray="326.7" stroke-dashoffset="326.7" stroke-linecap="round" class="gauge-arc glow-arc" id="cpuArc" transform="rotate(-90 60 60)" />
+                        <circle cx="60" cy="60" r="52" fill="none" stroke="url(#cpuGrad)" stroke-width="8"
+                            stroke-dasharray="326.7" stroke-dashoffset="326.7" stroke-linecap="round"
+                            class="gauge-arc glow-arc" id="cpuArc" transform="rotate(-90 60 60)" />
                         <defs>
                             <linearGradient id="cpuGrad" x1="0" y1="0" x2="1" y2="1">
                                 <stop offset="0%" stop-color="#00c6ff" />
@@ -74,7 +91,9 @@
                 <div class="gauge-ring-wrap">
                     <svg viewBox="0 0 120 120" class="gauge-svg">
                         <circle cx="60" cy="60" r="52" fill="none" stroke="rgba(255,255,255,0.03)" stroke-width="8" />
-                        <circle cx="60" cy="60" r="52" fill="none" stroke="url(#memGrad)" stroke-width="8" stroke-dasharray="326.7" stroke-dashoffset="326.7" stroke-linecap="round" class="gauge-arc glow-arc" id="memArc" transform="rotate(-90 60 60)" />
+                        <circle cx="60" cy="60" r="52" fill="none" stroke="url(#memGrad)" stroke-width="8"
+                            stroke-dasharray="326.7" stroke-dashoffset="326.7" stroke-linecap="round"
+                            class="gauge-arc glow-arc" id="memArc" transform="rotate(-90 60 60)" />
                         <defs>
                             <linearGradient id="memGrad" x1="0" y1="0" x2="1" y2="1">
                                 <stop offset="0%" stop-color="#d4145a" />
@@ -160,7 +179,8 @@
                         <span class="bandit-bar-pct" id="heurPctLabel">0%</span>
                     </div>
                     <div class="bandit-bar-track">
-                        <div class="bandit-bar-fill bandit-bar-fill--heur" id="heurBar" style="width:0%; box-shadow: 0 0 10px rgba(161, 140, 209, 0.8);"></div>
+                        <div class="bandit-bar-fill bandit-bar-fill--heur" id="heurBar"
+                            style="width:0%; box-shadow: 0 0 10px rgba(161, 140, 209, 0.8);"></div>
                     </div>
                 </div>
                 <div class="bandit-bar-wrap">
@@ -169,13 +189,38 @@
                         <span class="bandit-bar-pct" id="bandPctLabel">0%</span>
                     </div>
                     <div class="bandit-bar-track">
-                        <div class="bandit-bar-fill bandit-bar-fill--band" id="bandBar" style="width:0%; box-shadow: 0 0 10px rgba(0, 198, 255, 0.8);"></div>
+                        <div class="bandit-bar-fill bandit-bar-fill--band" id="bandBar"
+                            style="width:0%; box-shadow: 0 0 10px rgba(0, 198, 255, 0.8);"></div>
                     </div>
                 </div>
                 <div class="bandit-meta">
-                    <div><span class="bandit-meta-label">Total Decisions</span><span class="bandit-meta-value glow-text" id="totalDec">0</span></div>
-                    <div><span class="bandit-meta-label">α (ctx weight)</span><span class="bandit-meta-value glow-text" id="alphaVal">0.7</span></div>
-                    <div><span class="bandit-meta-label">β (energy weight)</span><span class="bandit-meta-value glow-text" id="betaVal">0.3</span></div>
+                    <div><span class="bandit-meta-label">Total Decisions</span><span class="bandit-meta-value glow-text"
+                            id="totalDec">0</span></div>
+                    <div><span class="bandit-meta-label">α (ctx weight)</span><span class="bandit-meta-value glow-text"
+                            id="alphaVal">0.7</span></div>
+                    <div><span class="bandit-meta-label">β (energy weight)</span><span
+                            class="bandit-meta-value glow-text" id="betaVal">0.3</span></div>
+                </div>
+            </div>
+        </section>
+
+        <section class="section glass-panel">
+            <div class="section-head">
+                <h2>Aizen System Intelligence</h2>
+                <p>AI insights about the computer health, process management, and future predictive analytics</p>
+            </div>
+            <div class="aizen-panel" id="aizenPanel">
+                <div class="aizen-card">
+                    <h3>Health Status</h3>
+                    <p id="aizenHealth">Analyzing real-time metrics...</p>
+                </div>
+                <div class="aizen-card">
+                    <h3>Process Insights</h3>
+                    <p id="aizenProcess">Waiting for telemetry...</p>
+                </div>
+                <div class="aizen-card">
+                    <h3>Future Use & Recommendations</h3>
+                    <p id="aizenFuture">Deploying models...</p>
                 </div>
             </div>
         </section>
@@ -188,7 +233,9 @@
                 </div>
                 <button class="reset-btn glass-btn" id="resetBtn">
                     <svg viewBox="0 0 20 20" fill="currentColor" width="14" height="14">
-                        <path fill-rule="evenodd" d="M15.312 11.424a5.5 5.5 0 0 1-9.378 2.202l-1.36 1.36A7.002 7.002 0 0 0 17.27 10.5H15.5a.5.5 0 0 0-.188.924zM4.688 8.576a5.5 5.5 0 0 1 9.378-2.202l1.36-1.36A7.002 7.002 0 0 0 2.73 9.5H4.5a.5.5 0 0 0 .188-.924z" clip-rule="evenodd" />
+                        <path fill-rule="evenodd"
+                            d="M15.312 11.424a5.5 5.5 0 0 1-9.378 2.202l-1.36 1.36A7.002 7.002 0 0 0 17.27 10.5H15.5a.5.5 0 0 0-.188.924zM4.688 8.576a5.5 5.5 0 0 1 9.378-2.202l1.36-1.36A7.002 7.002 0 0 0 2.73 9.5H4.5a.5.5 0 0 0 .188-.924z"
+                            clip-rule="evenodd" />
                     </svg>
                     Reset Affinities
                 </button>
@@ -221,6 +268,14 @@
 
     <footer class="footer">AI-DAX Lite v3 · Premium Glassmorphic Intelligence · Research Prototype</footer>
 
+    <div class="jarvis-orb" id="jarvisBtn" title="Jarvis Multilingual Voice Assistant">
+        <svg class="jarvis-icon" viewBox="0 0 24 24">
+            <path
+                d="M12 14c1.66 0 2.99-1.34 2.99-3L15 5c0-1.66-1.34-3-3-3S9 3.34 9 5v6c0 1.66 1.34 3 3 3zm5.3-3c0 3-2.54 5.1-5.3 5.1S6.7 14 6.7 11H5c0 3.41 2.72 6.23 6 6.72V21h2v-3.28c3.28-.48 6-3.3 6-6.72h-1.7z" />
+        </svg>
+    </div>
+
     <script src="app.js"></script>
 </body>
+
 </html>

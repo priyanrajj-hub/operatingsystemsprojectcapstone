@@ -213,6 +213,7 @@
     // Render Functions
     // ─────────────────────────────────────────────
     function renderAll(data) {
+        aizenDataCache = data;
         const sys = data.system || {};
         const procs = data.processes || [];
         const bandit = data.bandit || {};
@@ -515,5 +516,101 @@
             setInterval(poll, 1500);
         }
     }, 1500);
+
+    // ─────────────────────────────────────────────
+    // Jarvis & Aizen Integration
+    // ─────────────────────────────────────────────
+    let aizenDataCache = null;
+    const aizenHealth = $('aizenHealth');
+    const aizenProcess = $('aizenProcess');
+    const aizenFuture = $('aizenFuture');
+    const jarvisBtn = $('jarvisBtn');
+
+    async function fetchAizenInsights(sys, bandit) {
+        if (!sys || !sys.cpu_percent_overall) return;
+        try {
+            const resp = await fetch('http://localhost:8000/api/aizen', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    cpu_percent_overall: sys.cpu_percent_overall || 0,
+                    memory_percent: sys.memory_percent || 0,
+                    total_decisions: bandit.total_decisions || 0,
+                    regret: bandit.cumulative_regret || 0
+                })
+            });
+            const data = await resp.json();
+            if (data.health) aizenHealth.textContent = data.health;
+            if (data.process) aizenProcess.textContent = data.process;
+            if (data.future) aizenFuture.textContent = data.future;
+        } catch (e) {
+            console.error("Aizen LLM unavailable", e);
+        }
+    }
+
+    // Call Aizen every 15 seconds to save API quota
+    setInterval(() => {
+        if (aizenDataCache && aizenHealth) fetchAizenInsights(aizenDataCache.system, aizenDataCache.bandit);
+    }, 15000);
+    // Initial call after 2 seconds
+    setTimeout(() => {
+        if (aizenDataCache && aizenHealth) fetchAizenInsights(aizenDataCache.system, aizenDataCache.bandit);
+    }, 2000);
+
+    // Jarvis Multilingual Voice Recognition
+    const SpeechRec = window.SpeechRecognition || window.webkitSpeechRecognition;
+    if (SpeechRec && jarvisBtn) {
+        const recognition = new SpeechRec();
+        recognition.continuous = false;
+        recognition.lang = 'en-US';
+
+        jarvisBtn.addEventListener('click', () => {
+            jarvisBtn.classList.add('listening');
+            recognition.start();
+        });
+
+        recognition.onresult = async (event) => {
+            jarvisBtn.classList.remove('listening');
+            const query = event.results[0][0].transcript;
+
+            // Extract language from Google Translate Combo
+            let userLang = 'English';
+            try {
+                const gt = document.querySelector('.goog-te-combo');
+                if (gt && gt.value) {
+                    userLang = gt.options[gt.selectedIndex].text;
+                }
+            } catch { }
+
+            try {
+                const sys = aizenDataCache ? aizenDataCache.system : {};
+                const resp = await fetch('http://localhost:8000/api/jarvis', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        cpu_percent_overall: sys.cpu_percent_overall || 0,
+                        memory_percent: sys.memory_percent || 0,
+                        total_decisions: 0,
+                        regret: 0,
+                        voice_query: query,
+                        language: userLang
+                    })
+                });
+                const data = await resp.json();
+
+                const synth = window.speechSynthesis;
+                const utterThis = new SpeechSynthesisUtterance(data.response);
+                synth.speak(utterThis);
+
+                alert("Jarvis (" + userLang + "): " + data.response);
+
+            } catch (e) {
+                console.error("Jarvis offline", e);
+            }
+        };
+
+        recognition.onerror = () => jarvisBtn.classList.remove('listening');
+        recognition.onend = () => jarvisBtn.classList.remove('listening');
+    }
 
 })();
