@@ -20,7 +20,8 @@ The entire architectural pipeline has been upgraded into a production-grade AI p
 
 ## 🛠️ Tech Stack
 
-* **Frontend Design:** Vanilla CSS3 Glassmorphism, Google Native `md-icons`, Chart.js dynamically mapped to 1-second pulse polling.
+- **Frontend Design:** Vanilla CSS3 Glassmorphism, Google Native `md-icons`, Chart.js dynamically mapped to 1-second pulse polling.
+
 - **Serverless Edge:** Deployed autonomously via Vercel with strict `.vercelignore` partitioning to eliminate backend build bloat.
 - **Kernel Backend:** Python 3.11 with `FastAPI`, `uvicorn`, and `psutil` executing continuous `win32` API CPU affinity allocations.
 - **Generative LLM Engine:** Google AI Studio `google-generativeai` SDK strictly bounded by `.env` authentication for deterministic logic synthesis.
@@ -48,11 +49,12 @@ This boots up:
 ### 3. Open the UI
 
 If running locally, navigate to `http://localhost:8000`.
-If accessing the production build, navigate to: [https://ai-dax-os-capstone.vercel.app](https://ai-dax-os-capstone.vercel.app)
+If accessing the production build, navigate to: [https://operatingsystemsprojectcapstone-304jpyhti-priyanraj.vercel.app/](https://operatingsystemsprojectcapstone-304jpyhti-priyanraj.vercel.app/)
 
 ## 📊 Dashboard Visuals
 
-* **Load Distribution UI:** An automated algorithm elegantly patches transient OS telemetry bugs to output stunning, continuous load distributions spanning heavy / light processes.
+- **Load Distribution UI:** An automated algorithm elegantly patches transient OS telemetry bugs to output stunning, continuous load distributions spanning heavy / light processes.
+
 - **Cumulative Regret Timeline:** A mathematical visual proving absolute policy convergence towards zero-fault scheduling logic.
 
 <div align="center">
