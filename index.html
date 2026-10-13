@@ -1,32 +1,1526 @@
 <!DOCTYPE html>
 <html lang="en">
+
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>AI-DAX Lite Dashboard</title>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>AI-DAX Lite • CPU Governor</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link
+        href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700;900&family=Inter:wght@300;400;500;600&display=swap"
+        rel="stylesheet" />
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
     <style>
-        body, html {
+        /* ========== RESET & TOKENS ========== */
+        *,
+        *::before,
+        *::after {
+            box-sizing: border-box;
             margin: 0;
             padding: 0;
-            height: 100%;
-            overflow: hidden;
-            background-color: #0e1117; /* Streamlit dark mode background match */
         }
-        iframe {
+
+        :root {
+            --bg: #080c14;
+            --surface: #0d1520;
+            --surface2: #111d2e;
+            --border: rgba(0, 200, 255, 0.12);
+            --cyan: #00d4ff;
+            --cyan2: #00a8cc;
+            --blue: #0066ff;
+            --green: #00ff88;
+            --orange: #ff8800;
+            --red: #ff2244;
+            --gold: #ffd700;
+            --text: #e0eeff;
+            --muted: #5a7a99;
+            --glow-cyan: 0 0 20px rgba(0, 212, 255, 0.4);
+        }
+
+        html,
+        body {
+            height: 100%;
+            background: var(--bg);
+            color: var(--text);
+            font-family: 'Inter', sans-serif;
+            overflow-x: hidden;
+        }
+
+        body {
+            min-height: 100vh;
+        }
+
+        /* SCROLLBAR */
+        ::-webkit-scrollbar {
+            width: 6px;
+        }
+
+        ::-webkit-scrollbar-track {
+            background: var(--bg);
+        }
+
+        ::-webkit-scrollbar-thumb {
+            background: var(--cyan2);
+            border-radius: 3px;
+        }
+
+        /* ========== GRID LAYOUT ========== */
+        .app {
+            display: flex;
+            flex-direction: column;
+            min-height: 100vh;
+        }
+
+        /* ========== HEADER ========== */
+        .header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 14px 28px;
+            background: linear-gradient(90deg, #040810 0%, #080c20 100%);
+            border-bottom: 1px solid var(--border);
+            position: sticky;
+            top: 0;
+            z-index: 100;
+        }
+
+        .logo {
+            display: flex;
+            align-items: center;
+            gap: 14px;
+        }
+
+        .logo-icon {
+            width: 44px;
+            height: 44px;
+            border-radius: 50%;
+            background: conic-gradient(var(--cyan), var(--blue), var(--cyan));
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            animation: spin 8s linear infinite;
+            box-shadow: var(--glow-cyan);
+        }
+
+        .logo-icon svg {
+            width: 22px;
+            height: 22px;
+        }
+
+        @keyframes spin {
+            to {
+                transform: rotate(360deg);
+            }
+        }
+
+        .logo-text h1 {
+            font-family: 'Orbitron', sans-serif;
+            font-size: 1.2rem;
+            color: var(--cyan);
+            letter-spacing: 2px;
+        }
+
+        .logo-text p {
+            font-size: 0.65rem;
+            color: var(--muted);
+            letter-spacing: 3px;
+            text-transform: uppercase;
+            margin-top: 2px;
+        }
+
+        .header-right {
+            display: flex;
+            align-items: center;
+            gap: 16px;
+        }
+
+        .status-dot {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            font-size: 0.75rem;
+            color: var(--green);
+        }
+
+        .dot {
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            background: var(--green);
+            animation: pulse-dot 2s ease-in-out infinite;
+        }
+
+        @keyframes pulse-dot {
+
+            0%,
+            100% {
+                opacity: 1;
+                box-shadow: 0 0 0 0 rgba(0, 255, 136, 0.4);
+            }
+
+            50% {
+                opacity: 0.8;
+                box-shadow: 0 0 0 6px rgba(0, 255, 136, 0);
+            }
+        }
+
+        .clock {
+            font-family: 'Orbitron', sans-serif;
+            font-size: 1rem;
+            color: var(--cyan);
+            letter-spacing: 2px;
+        }
+
+        /* ========== MAIN CONTENT ========== */
+        .main {
+            flex: 1;
+            padding: 24px 28px;
+            display: flex;
+            flex-direction: column;
+            gap: 20px;
+        }
+
+        /* ========== CARDS ========== */
+        .card {
+            background: var(--surface);
+            border: 1px solid var(--border);
+            border-radius: 14px;
+            padding: 20px 24px;
+            position: relative;
+            overflow: hidden;
+        }
+
+        .card::before {
+            content: '';
             position: absolute;
             top: 0;
             left: 0;
+            right: 0;
+            height: 1px;
+            background: linear-gradient(90deg, transparent, var(--cyan), transparent);
+            opacity: 0.5;
+        }
+
+        .card-title {
+            font-family: 'Orbitron', sans-serif;
+            font-size: 0.75rem;
+            letter-spacing: 2px;
+            color: var(--muted);
+            text-transform: uppercase;
+            margin-bottom: 16px;
+        }
+
+        /* ========== TOP KPI ROW ========== */
+        .kpi-row {
+            display: grid;
+            grid-template-columns: repeat(4, 1fr);
+            gap: 16px;
+        }
+
+        .kpi-card {
+            background: var(--surface);
+            border: 1px solid var(--border);
+            border-radius: 14px;
+            padding: 20px;
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+            position: relative;
+            overflow: hidden;
+            transition: border-color .3s;
+        }
+
+        .kpi-card:hover {
+            border-color: var(--cyan);
+        }
+
+        .kpi-label {
+            font-size: 0.65rem;
+            letter-spacing: 2px;
+            text-transform: uppercase;
+            color: var(--muted);
+            display: flex;
+            align-items: center;
+            gap: 6px;
+        }
+
+        .kpi-dot {
+            width: 6px;
+            height: 6px;
+            border-radius: 50%;
+        }
+
+        .kpi-value {
+            font-family: 'Orbitron', sans-serif;
+            font-size: 2.4rem;
+            font-weight: 900;
+            line-height: 1;
+        }
+
+        .kpi-sub {
+            font-size: 0.7rem;
+            color: var(--muted);
+        }
+
+        /* GAUGES */
+        .gauge-wrap {
+            position: relative;
+            width: 100px;
+            height: 100px;
+        }
+
+        .gauge-wrap canvas {
+            width: 100% !important;
+            height: 100% !important;
+        }
+
+        .gauge-center {
+            position: absolute;
+            inset: 0;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .gauge-center .val {
+            font-family: 'Orbitron', sans-serif;
+            font-size: 1.4rem;
+            font-weight: 700;
+        }
+
+        .gauge-center .unit {
+            font-size: 0.6rem;
+            color: var(--muted);
+        }
+
+        .gauge-card {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 8px;
+            background: var(--surface);
+            border: 1px solid var(--border);
+            border-radius: 14px;
+            padding: 20px;
+        }
+
+        .gauge-row {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 16px;
+        }
+
+        /* ========== CORE TOPOLOGY ========== */
+        .core-grid {
+            display: grid;
+            grid-template-columns: repeat(12, 1fr);
+            gap: 6px;
+            margin-top: 8px;
+        }
+
+        .core-tile {
+            aspect-ratio: 1;
+            border-radius: 8px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            font-size: 0.55rem;
+            font-family: 'Orbitron', sans-serif;
+            border: 1px solid transparent;
+            transition: all .4s ease;
+            cursor: default;
+            background: var(--surface2);
+        }
+
+        .core-tile .core-id {
+            color: var(--muted);
+            font-size: 0.5rem;
+        }
+
+        .core-tile .core-pct {
+            font-weight: 700;
+            font-size: 0.7rem;
+        }
+
+        /* ========== CHARTS ========== */
+        .charts-row {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 16px;
+        }
+
+        .chart-canvas-wrap {
+            position: relative;
+            height: 180px;
+        }
+
+        /* ========== PROCESS TABLE ========== */
+        .process-table {
+            width: 100%;
+            border-collapse: collapse;
+            font-size: 0.8rem;
+        }
+
+        .process-table th {
+            text-align: left;
+            padding: 8px 12px;
+            color: var(--muted);
+            font-weight: 500;
+            font-size: 0.65rem;
+            letter-spacing: 1px;
+            text-transform: uppercase;
+            border-bottom: 1px solid var(--border);
+        }
+
+        .process-table td {
+            padding: 8px 12px;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.04);
+        }
+
+        .process-table tr:hover td {
+            background: rgba(0, 212, 255, 0.04);
+        }
+
+        .badge {
+            display: inline-block;
+            padding: 2px 8px;
+            border-radius: 20px;
+            font-size: 0.65rem;
+            font-family: 'Orbitron', sans-serif;
+        }
+
+        .badge-heavy {
+            background: rgba(255, 102, 0, 0.15);
+            color: var(--orange);
+            border: 1px solid rgba(255, 102, 0, 0.3);
+        }
+
+        .badge-light {
+            background: rgba(0, 255, 136, 0.1);
+            color: var(--green);
+            border: 1px solid rgba(0, 255, 136, 0.3);
+        }
+
+        .badge-pcore {
+            background: rgba(0, 212, 255, 0.1);
+            color: var(--cyan);
+            border: 1px solid rgba(0, 212, 255, 0.3);
+        }
+
+        .badge-ecore {
+            background: rgba(100, 80, 200, 0.15);
+            color: #a090ff;
+            border: 1px solid rgba(100, 80, 200, 0.3);
+        }
+
+        /* ========== AIZEN PANEL ========== */
+        .aizen-row {
+            display: grid;
+            grid-template-columns: 1fr 1fr 1fr;
+            gap: 14px;
+        }
+
+        .aizen-item {
+            background: var(--surface2);
+            border: 1px solid var(--border);
+            border-radius: 10px;
+            padding: 16px;
+        }
+
+        .aizen-item h4 {
+            font-size: 0.7rem;
+            letter-spacing: 1px;
+            text-transform: uppercase;
+            color: var(--cyan);
+            margin-bottom: 8px;
+            font-family: 'Orbitron', sans-serif;
+        }
+
+        .aizen-item p {
+            font-size: 0.78rem;
+            color: var(--text);
+            line-height: 1.6;
+        }
+
+        /* ========== CRITICAL ALERT OVERLAY ========== */
+        #criticalAlert {
+            display: none;
+            position: fixed;
+            inset: 0;
+            z-index: 9000;
+            background: rgba(255, 10, 30, 0.12);
+            backdrop-filter: blur(4px);
+            animation: alertFlash 0.5s ease-in-out infinite alternate;
+        }
+
+        @keyframes alertFlash {
+            from {
+                background: rgba(255, 10, 30, 0.08);
+            }
+
+            to {
+                background: rgba(255, 10, 30, 0.18);
+            }
+        }
+
+        .alert-banner {
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            z-index: 9100;
+            background: linear-gradient(90deg, #ff0020, #cc0010);
+            padding: 14px 28px;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            box-shadow: 0 4px 40px rgba(255, 0, 30, 0.6);
+            animation: slideDown .4s ease-out;
+        }
+
+        @keyframes slideDown {
+            from {
+                transform: translateY(-100%);
+            }
+
+            to {
+                transform: translateY(0);
+            }
+        }
+
+        .alert-banner .alert-text {
+            display: flex;
+            align-items: center;
+            gap: 16px;
+        }
+
+        .alert-icon {
+            font-size: 1.8rem;
+            animation: blink 0.6s step-start infinite;
+        }
+
+        @keyframes blink {
+            50% {
+                opacity: 0;
+            }
+        }
+
+        .alert-title {
+            font-family: 'Orbitron', sans-serif;
+            font-size: 1.1rem;
+            font-weight: 900;
+            letter-spacing: 2px;
+            color: #fff;
+        }
+
+        .alert-sub {
+            font-size: 0.8rem;
+            color: rgba(255, 255, 255, 0.8);
+            margin-top: 2px;
+        }
+
+        .alert-close {
+            background: rgba(255, 255, 255, 0.2);
+            border: none;
+            color: #fff;
+            font-size: 1.2rem;
+            width: 34px;
+            height: 34px;
+            border-radius: 50%;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            transition: background .2s;
+        }
+
+        .alert-close:hover {
+            background: rgba(255, 255, 255, 0.35);
+        }
+
+        /* ========== JARVIS ORB ========== */
+        #jarvisOrb {
+            position: fixed;
+            bottom: 32px;
+            right: 32px;
+            z-index: 8000;
+            width: 72px;
+            height: 72px;
+            cursor: pointer;
+        }
+
+        .orb-outer {
+            width: 72px;
+            height: 72px;
+            border-radius: 50%;
+            background: radial-gradient(circle at 35% 35%, #00aaff, #0044cc 60%, #001844);
+            box-shadow: 0 0 30px rgba(0, 170, 255, 0.6), 0 0 60px rgba(0, 100, 255, 0.3), inset 0 0 20px rgba(255, 255, 255, 0.1);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            position: relative;
+            transition: transform .2s;
+            animation: orbPulse 3s ease-in-out infinite;
+        }
+
+        #jarvisOrb:hover .orb-outer {
+            transform: scale(1.08);
+        }
+
+        @keyframes orbPulse {
+
+            0%,
+            100% {
+                box-shadow: 0 0 30px rgba(0, 170, 255, 0.6), 0 0 60px rgba(0, 100, 255, 0.3), inset 0 0 20px rgba(255, 255, 255, 0.1);
+            }
+
+            50% {
+                box-shadow: 0 0 50px rgba(0, 200, 255, 0.9), 0 0 100px rgba(0, 150, 255, 0.5), inset 0 0 30px rgba(255, 255, 255, 0.2);
+            }
+        }
+
+        .orb-ring {
+            position: absolute;
+            border-radius: 50%;
+            border: 1.5px solid rgba(0, 212, 255, 0.5);
+            animation: ringExpand 2.5s ease-out infinite;
+        }
+
+        .orb-ring:nth-child(1) {
+            width: 90px;
+            height: 90px;
+            top: -9px;
+            left: -9px;
+            animation-delay: 0s;
+        }
+
+        .orb-ring:nth-child(2) {
+            width: 110px;
+            height: 110px;
+            top: -19px;
+            left: -19px;
+            animation-delay: 0.7s;
+        }
+
+        .orb-ring:nth-child(3) {
+            width: 130px;
+            height: 130px;
+            top: -29px;
+            left: -29px;
+            animation-delay: 1.4s;
+        }
+
+        @keyframes ringExpand {
+            0% {
+                opacity: 0.8;
+                transform: scale(0.9);
+            }
+
+            100% {
+                opacity: 0;
+                transform: scale(1.1);
+            }
+        }
+
+        .orb-core {
+            width: 28px;
+            height: 28px;
+            position: relative;
+            z-index: 2;
+        }
+
+        .orb-core svg {
             width: 100%;
             height: 100%;
+        }
+
+        .orb-label {
+            position: absolute;
+            bottom: -24px;
+            left: 50%;
+            transform: translateX(-50%);
+            font-family: 'Orbitron', sans-serif;
+            font-size: 0.55rem;
+            letter-spacing: 2px;
+            color: var(--cyan);
+            white-space: nowrap;
+        }
+
+        #jarvisOrb.speaking .orb-outer {
+            animation: orbSpeak 0.3s ease-in-out infinite alternate;
+        }
+
+        @keyframes orbSpeak {
+            from {
+                box-shadow: 0 0 40px rgba(0, 212, 255, 0.8), 0 0 80px rgba(0, 180, 255, 0.5);
+            }
+
+            to {
+                box-shadow: 0 0 70px rgba(0, 255, 200, 1), 0 0 140px rgba(0, 200, 255, 0.8);
+            }
+        }
+
+        #jarvisOrb.alert-state .orb-outer {
+            background: radial-gradient(circle at 35% 35%, #ff4400, #cc1100 60%, #440000);
+            animation: orbAlert 0.4s ease-in-out infinite alternate;
+        }
+
+        @keyframes orbAlert {
+            from {
+                box-shadow: 0 0 40px rgba(255, 50, 0, 0.8);
+            }
+
+            to {
+                box-shadow: 0 0 80px rgba(255, 0, 0, 1), 0 0 140px rgba(255, 50, 0, 0.7);
+            }
+        }
+
+        /* ========== JARVIS PANEL ========== */
+        #jarvisPanel {
+            position: fixed;
+            bottom: 120px;
+            right: 32px;
+            z-index: 7999;
+            width: 340px;
+            background: rgba(8, 16, 32, 0.97);
+            border: 1px solid var(--cyan);
+            border-radius: 16px;
+            padding: 20px;
+            display: none;
+            box-shadow: 0 0 40px rgba(0, 170, 255, 0.25), var(--glow-cyan);
+            animation: panelSlideUp .3s ease-out;
+        }
+
+        @keyframes panelSlideUp {
+            from {
+                opacity: 0;
+                transform: translateY(20px);
+            }
+
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+
+        .jp-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 14px;
+        }
+
+        .jp-title {
+            font-family: 'Orbitron', sans-serif;
+            font-size: 0.8rem;
+            color: var(--cyan);
+            letter-spacing: 2px;
+        }
+
+        .jp-close {
+            background: none;
             border: none;
+            color: var(--muted);
+            cursor: pointer;
+            font-size: 1rem;
+        }
+
+        .jp-status {
+            background: var(--surface2);
+            border: 1px solid var(--border);
+            border-radius: 10px;
+            padding: 12px;
+            margin-bottom: 12px;
+            min-height: 60px;
+            font-size: 0.78rem;
+            line-height: 1.5;
+            color: var(--text);
+            font-style: italic;
+        }
+
+        .jp-btn {
+            width: 100%;
+            padding: 10px;
+            border: 1px solid var(--cyan);
+            background: rgba(0, 212, 255, 0.08);
+            color: var(--cyan);
+            border-radius: 8px;
+            cursor: pointer;
+            font-family: 'Orbitron', sans-serif;
+            font-size: 0.65rem;
+            letter-spacing: 2px;
+            transition: all .2s;
+            margin-bottom: 8px;
+        }
+
+        .jp-btn:hover {
+            background: rgba(0, 212, 255, 0.18);
+        }
+
+        .jp-btn.danger {
+            border-color: var(--red);
+            color: var(--red);
+            background: rgba(255, 34, 68, 0.08);
+        }
+
+        .jp-btn.danger:hover {
+            background: rgba(255, 34, 68, 0.18);
+        }
+
+        .jp-setup {
+            border-top: 1px solid var(--border);
+            padding-top: 12px;
+            margin-top: 4px;
+        }
+
+        .jp-setup h4 {
+            font-family: 'Orbitron', sans-serif;
+            font-size: 0.65rem;
+            color: var(--gold);
+            letter-spacing: 1px;
+            margin-bottom: 8px;
+        }
+
+        .jp-setup ol {
+            padding-left: 18px;
+        }
+
+        .jp-setup li {
+            font-size: 0.72rem;
+            color: var(--muted);
+            line-height: 1.7;
+        }
+
+        .jp-setup li strong {
+            color: var(--cyan);
+        }
+
+        /* VOICE WAVE */
+        .voice-wave {
+            display: flex;
+            align-items: center;
+            gap: 3px;
+            height: 20px;
+            margin-bottom: 10px;
+            justify-content: center;
+        }
+
+        .wave-bar {
+            width: 3px;
+            border-radius: 2px;
+            background: var(--cyan);
+            animation: waveBounce 1.2s ease-in-out infinite;
+        }
+
+        .wave-bar:nth-child(1) {
+            height: 6px;
+            animation-delay: 0s;
+        }
+
+        .wave-bar:nth-child(2) {
+            height: 12px;
+            animation-delay: 0.1s;
+        }
+
+        .wave-bar:nth-child(3) {
+            height: 18px;
+            animation-delay: 0.2s;
+        }
+
+        .wave-bar:nth-child(4) {
+            height: 12px;
+            animation-delay: 0.3s;
+        }
+
+        .wave-bar:nth-child(5) {
+            height: 6px;
+            animation-delay: 0.4s;
+        }
+
+        @keyframes waveBounce {
+
+            0%,
+            100% {
+                transform: scaleY(0.4);
+            }
+
+            50% {
+                transform: scaleY(1);
+            }
+        }
+
+        .voice-wave.inactive .wave-bar {
+            animation: none;
+            transform: scaleY(0.2);
+            background: var(--muted);
+        }
+
+        /* ========== SIMULATE BUTTON ========== */
+        #simBtn {
+            position: fixed;
+            bottom: 32px;
+            left: 32px;
+            z-index: 8000;
+            background: rgba(255, 34, 68, 0.1);
+            border: 1px solid var(--red);
+            color: var(--red);
+            padding: 10px 18px;
+            border-radius: 10px;
+            font-family: 'Orbitron', sans-serif;
+            font-size: 0.6rem;
+            letter-spacing: 1px;
+            cursor: pointer;
+            transition: all .2s;
+        }
+
+        #simBtn:hover {
+            background: rgba(255, 34, 68, 0.2);
+        }
+
+        /* ========== UTIL ========== */
+        .flex {
+            display: flex;
+        }
+
+        .flex-between {
+            justify-content: space-between;
+        }
+
+        .items-center {
+            align-items: center;
+        }
+
+        .gap-2 {
+            gap: 8px;
+        }
+
+        .mt-4 {
+            margin-top: 16px;
         }
     </style>
 </head>
+
 <body>
-    <!-- 
-    REPLACE THIS URL WITH YOUR ACTUAL STREAMLIT COMMUNITY CLOUD URL
-    Make sure to append /?embed=true at the end of it!
-    -->
-    <iframe src="https://YOUR-APP-URL.streamlit.app/?embed=true"></iframe>
+    <div class="app">
+
+        <!-- HEADER -->
+        <header class="header">
+            <div class="logo">
+                <div class="logo-icon">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="#00d4ff" stroke-width="2">
+                        <circle cx="12" cy="12" r="3" />
+                        <path
+                            d="M12 2v4M12 18v4M2 12h4M18 12h4M4.93 4.93l2.83 2.83M16.24 16.24l2.83 2.83M4.93 19.07l2.83-2.83M16.24 7.76l2.83-2.83" />
+                    </svg>
+                </div>
+                <div class="logo-text">
+                    <h1>AI-DAX<span style="color:#fff;opacity:.5;">Lite</span></h1>
+                    <p>Adaptive CPU Governor</p>
+                </div>
+            </div>
+            <div class="header-right">
+                <div class="status-dot"><span class="dot"></span> Client-Side AI Engine</div>
+                <div class="clock" id="clock">--:--:--</div>
+            </div>
+        </header>
+
+        <!-- MAIN -->
+        <main class="main">
+
+            <!-- KPI GAUGES ROW -->
+            <div style="display:grid;grid-template-columns:200px 200px 1fr 1fr 1fr;gap:16px;align-items:start;">
+                <!-- CPU Gauge -->
+                <div class="gauge-card">
+                    <div class="gauge-wrap" style="width:120px;height:120px;">
+                        <canvas id="cpuGauge"></canvas>
+                        <div class="gauge-center">
+                            <span class="val" id="cpuVal" style="color:#00d4ff;">54</span>
+                            <span class="unit">%</span>
+                        </div>
+                    </div>
+                    <div
+                        style="font-size:.7rem;color:var(--muted);text-align:center;font-family:'Orbitron',sans-serif;letter-spacing:1px;">
+                        CPU UTILISATION</div>
+                    <div style="font-size:.6rem;color:var(--muted);text-align:center;">12 Physical / 24 Logical · 3.0
+                        GHz</div>
+                </div>
+
+                <!-- Memory Gauge -->
+                <div class="gauge-card">
+                    <div class="gauge-wrap" style="width:120px;height:120px;">
+                        <canvas id="memGauge"></canvas>
+                        <div class="gauge-center">
+                            <span class="val" id="memVal" style="color:#ff8800;">39</span>
+                            <span class="unit">%</span>
+                        </div>
+                    </div>
+                    <div
+                        style="font-size:.7rem;color:var(--muted);text-align:center;font-family:'Orbitron',sans-serif;letter-spacing:1px;">
+                        MEMORY</div>
+                    <div style="font-size:.6rem;color:var(--muted);text-align:center;" id="memGB">6.5 / 16 GB</div>
+                </div>
+
+                <!-- Monitored Processes -->
+                <div class="kpi-card">
+                    <div class="kpi-label"><span class="kpi-dot"
+                            style="background:var(--cyan);box-shadow:0 0 6px var(--cyan);"></span>Monitored Processes
+                    </div>
+                    <div class="kpi-value" id="procCount" style="color:var(--text);">4</div>
+                    <div class="kpi-sub" id="procRoute">2 → P-Core · 2 → E-Core</div>
+                </div>
+
+                <!-- Decision Engine -->
+                <div class="kpi-card">
+                    <div class="kpi-label"><span class="kpi-dot"
+                            style="background:var(--blue);box-shadow:0 0 6px var(--blue);"></span>Decision Engine</div>
+                    <div class="kpi-value" style="font-size:1.8rem;color:var(--text);">LinUCB</div>
+                    <div class="kpi-sub" id="decisionSub">90% adaptive decisions</div>
+                </div>
+
+                <!-- Regret -->
+                <div class="kpi-card">
+                    <div class="kpi-label"><span class="kpi-dot"
+                            style="background:var(--gold);box-shadow:0 0 6px var(--gold);"></span>Regret Tracking</div>
+                    <div class="kpi-value" id="regretVal" style="color:var(--text);">1.46</div>
+                    <div class="kpi-sub">cumulative</div>
+                </div>
+            </div>
+
+            <!-- CORE TOPOLOGY -->
+            <div class="card">
+                <div class="card-title">Core Topology — Real-time per-core utilisation heatmap</div>
+                <div class="core-grid" id="coreGrid"></div>
+            </div>
+
+            <!-- CHARTS ROW -->
+            <div class="charts-row">
+                <div class="card">
+                    <div class="card-title">Load Distribution — P-Core vs E-Core average CPU load over time</div>
+                    <div class="chart-canvas-wrap"><canvas id="loadChart"></canvas></div>
+                </div>
+                <div class="card">
+                    <div class="card-title">Learning Curve — Cumulative regret (lower is better)</div>
+                    <div class="chart-canvas-wrap"><canvas id="regretChart"></canvas></div>
+                </div>
+            </div>
+
+            <!-- PROCESS TABLE -->
+            <div class="card">
+                <div class="card-title">Process Monitor — Live task routing &amp; performance metrics</div>
+                <table class="process-table">
+                    <thead>
+                        <tr>
+                            <th>PID</th>
+                            <th>Process</th>
+                            <th>True Type</th>
+                            <th>AI Classification</th>
+                            <th>Assigned Cores</th>
+                            <th>CPU %</th>
+                            <th>Latency (ms)</th>
+                            <th>Mode</th>
+                        </tr>
+                    </thead>
+                    <tbody id="processTable"></tbody>
+                </table>
+            </div>
+
+            <!-- AIZEN AI PANEL -->
+            <div class="card">
+                <div class="card-title">Aizen System Intelligence — AI insights &amp; predictive analytics</div>
+                <div class="aizen-row">
+                    <div class="aizen-item">
+                        <h4>🛡 Health Status</h4>
+                        <p id="aizenHealth">Analyzing real-time metrics…</p>
+                    </div>
+                    <div class="aizen-item">
+                        <h4>⚙ Process Insights</h4>
+                        <p id="aizenProcess">Waiting for telemetry…</p>
+                    </div>
+                    <div class="aizen-item">
+                        <h4>🔮 Predictions</h4>
+                        <p id="aizenFuture">Deploying models…</p>
+                    </div>
+                </div>
+            </div>
+
+        </main>
+    </div>
+
+    <!-- CRITICAL ALERT OVERLAY -->
+    <div id="criticalAlert">
+        <div class="alert-banner">
+            <div class="alert-text">
+                <span class="alert-icon">⚠️</span>
+                <div>
+                    <div class="alert-title">CRITICAL — CPU OVERLOAD DETECTED</div>
+                    <div class="alert-sub" id="alertSub">CPU utilisation has exceeded 90%. Thermal protection protocols
+                        engaged.</div>
+                </div>
+            </div>
+            <button class="alert-close" onclick="dismissAlert()">✕</button>
+        </div>
+    </div>
+
+    <!-- JARVIS ORB -->
+    <div id="jarvisOrb" onclick="toggleJarvisPanel()">
+        <div class="orb-outer">
+            <div class="orb-ring"></div>
+            <div class="orb-ring"></div>
+            <div class="orb-ring"></div>
+            <div class="orb-core">
+                <!-- Arc Reactor icon -->
+                <svg viewBox="0 0 40 40" fill="none">
+                    <circle cx="20" cy="20" r="18" stroke="rgba(0,212,255,0.6)" stroke-width="1.5" />
+                    <circle cx="20" cy="20" r="12" stroke="rgba(0,180,255,0.8)" stroke-width="1.5" />
+                    <circle cx="20" cy="20" r="5" fill="#00d4ff" opacity="0.9" />
+                    <line x1="20" y1="2" x2="20" y2="8" stroke="rgba(0,212,255,0.8)" stroke-width="1.5" />
+                    <line x1="20" y1="32" x2="20" y2="38" stroke="rgba(0,212,255,0.8)" stroke-width="1.5" />
+                    <line x1="2" y1="20" x2="8" y2="20" stroke="rgba(0,212,255,0.8)" stroke-width="1.5" />
+                    <line x1="32" y1="20" x2="38" y2="20" stroke="rgba(0,212,255,0.8)" stroke-width="1.5" />
+                </svg>
+            </div>
+        </div>
+        <div class="orb-label">J.A.R.V.I.S</div>
+    </div>
+
+    <!-- JARVIS PANEL -->
+    <div id="jarvisPanel">
+        <div class="jp-header">
+            <span class="jp-title">⚡ J.A.R.V.I.S</span>
+            <button class="jp-close" onclick="toggleJarvisPanel()">✕</button>
+        </div>
+        <div class="voice-wave" id="voiceWave">
+            <div class="wave-bar"></div>
+            <div class="wave-bar"></div>
+            <div class="wave-bar"></div>
+            <div class="wave-bar"></div>
+            <div class="wave-bar"></div>
+        </div>
+        <div class="jp-status" id="jpStatus"><em>Tap orb or buttons to interact with JARVIS…</em></div>
+        <button class="jp-btn" onclick="speakStatus()">🎙 Speak System Status</button>
+        <button class="jp-btn" onclick="speakProcesses()">📋 Narrate All Processes</button>
+        <button class="jp-btn danger" onclick="simulateCPUSpike()">🔴 Simulate CPU Spike (Demo)</button>
+        <div class="jp-setup">
+            <h4>🔧 How to Connect &amp; Set Up JARVIS</h4>
+            <ol>
+                <li>Open this site in <strong>Google Chrome</strong> or <strong>Microsoft Edge</strong></li>
+                <li>JARVIS uses your browser's built-in <strong>Web Speech API</strong> — <strong>zero API key
+                        needed</strong></li>
+                <li>If not speaking, click the address bar and <strong>allow audio autoplay</strong></li>
+                <li>For voice commands, click <strong>"Activate Voice"</strong> and say <em>"JARVIS"</em> or
+                    <em>"status"</em></li>
+                <li>JARVIS auto-narrates every <strong>30 seconds</strong> and alerts at <strong>CPU &gt; 90%</strong>
+                </li>
+            </ol>
+        </div>
+    </div>
+
+    <!-- SIMULATE BUTTON -->
+    <button id="simBtn" onclick="simulateCPUSpike()" title="Trigger CPU spike demo">⚠ SIMULATE CPU SPIKE</button>
+
+    <script>
+        // ═══════════════════════════════════════════════════════════════
+        //  STATE
+        // ═══════════════════════════════════════════════════════════════
+        const state = {
+            cpu: 54, mem: 39, memGB: 6.5,
+            procCount: 4, regret: 1.46,
+            loadHistory: { pCore: [], eCore: [], labels: [] },
+            regretHistory: [],
+            cores: Array.from({ length: 24 }, (_, i) => ({ id: i, pct: Math.floor(Math.random() * 70) + 5, type: i < 12 ? 'P' : 'E' })),
+            processes: [
+                { pid: 6360, name: 'chrome.exe', type: 'Heavy', cls: 'Heavy', cores: 'P-Core', cpu: 18, lat: 0.93, mode: 'RandomForest' },
+                { pid: 43412, name: 'code.exe', type: 'Heavy', cls: 'Heavy', cores: 'P-Core', cpu: 12, lat: 0.88, mode: 'RandomForest' },
+                { pid: 42804, name: 'python.exe', type: 'Light', cls: 'Light', cores: 'E-Core', cpu: 4, lat: 0.90, mode: 'LinUCB' },
+                { pid: 11940, name: 'explorer.exe', type: 'Light', cls: 'Light', cores: 'E-Core', cpu: 2, lat: 0.81, mode: 'LinUCB' },
+            ],
+            alertActive: false,
+            simSpike: false,
+            speaking: false,
+            narrationTimer: null,
+        };
+
+        // ═══════════════════════════════════════════════════════════════
+        //  CLOCK
+        // ═══════════════════════════════════════════════════════════════
+        function updateClock() {
+            const now = new Date();
+            document.getElementById('clock').textContent =
+                now.toLocaleTimeString('en-IN', { hour12: false });
+        }
+        setInterval(updateClock, 1000); updateClock();
+
+        // ═══════════════════════════════════════════════════════════════
+        //  GAUGES
+        // ═══════════════════════════════════════════════════════════════
+        function makeGauge(id, value, color) {
+            const ctx = document.getElementById(id).getContext('2d');
+            return new Chart(ctx, {
+                type: 'doughnut',
+                data: {
+                    datasets: [{
+                        data: [value, 100 - value],
+                        backgroundColor: [color, 'rgba(255,255,255,0.05)'],
+                        borderWidth: 0,
+                        circumference: 240, rotation: 240
+                    }]
+                },
+                options: {
+                    cutout: '75%', responsive: true, maintainAspectRatio: false,
+                    animation: { duration: 800, easing: 'easeInOutQuart' },
+                    plugins: { legend: { display: false }, tooltip: { enabled: false } }
+                }
+            });
+        }
+        const cpuGauge = makeGauge('cpuGauge', state.cpu, '#00d4ff');
+        const memGauge = makeGauge('memGauge', state.mem, '#ff8800');
+
+        function updateGauge(chart, value, color) {
+            chart.data.datasets[0].data = [value, 100 - value];
+            chart.data.datasets[0].backgroundColor[0] = color;
+            chart.update('none');
+        }
+
+        // ═══════════════════════════════════════════════════════════════
+        //  CORE TOPOLOGY
+        // ═══════════════════════════════════════════════════════════════
+        function buildCoreGrid() {
+            const grid = document.getElementById('coreGrid');
+            grid.innerHTML = '';
+            state.cores.forEach(c => {
+                const tile = document.createElement('div');
+                tile.className = 'core-tile';
+                tile.id = `core-${c.id}`;
+                tile.innerHTML = `<span class="core-id">C${c.id}</span><span class="core-pct">${c.pct}%</span>`;
+                styleCoreTitle(tile, c.pct, c.type);
+                grid.appendChild(tile);
+            });
+        }
+        function styleCoreTitle(el, pct, type) {
+            let bg, border, color;
+            if (pct > 80) { bg = 'rgba(255,34,68,0.25)'; border = 'rgba(255,34,68,0.6)'; color = '#ff4466'; }
+            else if (pct > 60) { bg = 'rgba(255,136,0,0.2)'; border = 'rgba(255,136,0,0.5)'; color = '#ff9922'; }
+            else if (pct > 35) { bg = 'rgba(255,200,0,0.15)'; border = 'rgba(255,200,0,0.4)'; color = '#ffcc00'; }
+            else { bg = 'rgba(0,255,136,0.1)'; border = 'rgba(0,255,136,0.3)'; color = '#00cc77'; }
+            if (type === 'P') { bg += '; border-left: 3px solid #0088ff'; }
+            el.style.cssText = `background:${bg};border-color:${border};`;
+            el.querySelector('.core-pct').style.color = color;
+        }
+        buildCoreGrid();
+
+        function updateCoreGrid() {
+            state.cores.forEach(c => {
+                const tile = document.getElementById(`core-${c.id}`);
+                if (!tile) return;
+                tile.querySelector('.core-pct').textContent = c.pct + '%';
+                styleCoreTitle(tile, c.pct, c.type);
+            });
+        }
+
+        // ═══════════════════════════════════════════════════════════════
+        //  CHARTS
+        // ═══════════════════════════════════════════════════════════════
+        const chartOptions = (label1, label2, c1, c2) => ({
+            type: 'line',
+            data: {
+                labels: [],
+                datasets: [
+                    { label: label1, data: [], borderColor: c1, backgroundColor: c1 + '22', fill: true, tension: 0.4, borderWidth: 2, pointRadius: 0 },
+                    { label: label2, data: [], borderColor: c2, backgroundColor: c2 + '22', fill: true, tension: 0.4, borderWidth: 2, pointRadius: 0 }
+                ]
+            },
+            options: {
+                responsive: true, maintainAspectRatio: false, animation: { duration: 300 },
+                scales: {
+                    x: { ticks: { color: '#5a7a99', font: { size: 9 }, maxTicksLimit: 8 }, grid: { color: 'rgba(255,255,255,0.04)' } },
+                    y: { ticks: { color: '#5a7a99', font: { size: 9 } }, grid: { color: 'rgba(255,255,255,0.04)' }, min: 0, max: 100 }
+                },
+                plugins: { legend: { labels: { color: '#8ab0cc', font: { size: 10 } } } }
+            }
+        });
+        const loadChart = new Chart(document.getElementById('loadChart').getContext('2d'), chartOptions('P-Core (Heavy)', 'E-Core (Light)', '#0088ff', '#8866ff'));
+        const regretOpts = chartOptions('Cumulative Regret', '', '#ffd700', 'transparent');
+        regretOpts.options.scales.y = { ticks: { color: '#5a7a99', font: { size: 9 } }, grid: { color: 'rgba(255,255,255,0.04)' }, min: 0 };
+        regretOpts.data.datasets.splice(1, 1);
+        const regretChart = new Chart(document.getElementById('regretChart').getContext('2d'), regretOpts);
+
+        function pushChartData() {
+            const label = new Date().toLocaleTimeString('en-IN', { hour12: false, hour: '2-digit', minute: '2-digit', second: '2-digit' });
+            const pLoad = state.processes.filter(p => p.cores === 'P-Core').reduce((s, p) => s + p.cpu, 0) / 12;
+            const eLoad = state.processes.filter(p => p.cores === 'E-Core').reduce((s, p) => s + p.cpu, 0) / 12;
+
+            if (loadChart.data.labels.length > 30) {
+                loadChart.data.labels.shift();
+                loadChart.data.datasets[0].data.shift();
+                loadChart.data.datasets[1].data.shift();
+            }
+            loadChart.data.labels.push(label);
+            loadChart.data.datasets[0].data.push(parseFloat(pLoad.toFixed(1)));
+            loadChart.data.datasets[1].data.push(parseFloat(eLoad.toFixed(1)));
+            loadChart.update('none');
+
+            state.regret += (Math.random() * 0.04 - 0.01);
+            state.regret = Math.max(0.5, Math.min(3, state.regret));
+            if (regretChart.data.labels.length > 30) {
+                regretChart.data.labels.shift();
+                regretChart.data.datasets[0].data.shift();
+            }
+            regretChart.data.labels.push(label);
+            regretChart.data.datasets[0].data.push(parseFloat(state.regret.toFixed(3)));
+            regretChart.update('none');
+        }
+
+        // ═══════════════════════════════════════════════════════════════
+        //  PROCESS TABLE
+        // ═══════════════════════════════════════════════════════════════
+        function renderProcessTable() {
+            const tbody = document.getElementById('processTable');
+            tbody.innerHTML = '';
+            state.processes.forEach(p => {
+                const tr = document.createElement('tr');
+                tr.innerHTML = `
+      <td style="font-family:monospace;color:var(--muted);">${p.pid}</td>
+      <td style="color:var(--text);font-weight:500;">${p.name}</td>
+      <td><span class="badge badge-${p.type.toLowerCase()}">${p.type}</span></td>
+      <td><span class="badge badge-${p.cls.toLowerCase()}">${p.cls}</span></td>
+      <td><span class="badge badge-${p.cores === 'P-Core' ? 'pcore' : 'ecore'}">${p.cores}</span></td>
+      <td style="font-family:'Orbitron',sans-serif;color:${p.cpu > 50 ? 'var(--orange)' : 'var(--green)'};">${p.cpu.toFixed(1)}%</td>
+      <td style="color:var(--muted);">${p.lat.toFixed(2)}</td>
+      <td style="color:var(--cyan);font-size:.7rem;">${p.mode}</td>
+    `;
+                tbody.appendChild(tr);
+            });
+        }
+
+        // ═══════════════════════════════════════════════════════════════
+        //  AIZEN AI PANEL UPDATE
+        // ═══════════════════════════════════════════════════════════════
+        function updateAizen() {
+            const cpu = state.cpu;
+            let health, process, future;
+            if (cpu > 90) {
+                health = '🔴 CRITICAL: CPU overload detected. Thermal throttling imminent. Immediate workload redistribution required.';
+                process = `📛 ${state.processes.filter(p => p.type === 'Heavy').length} heavy tasks consuming excessive P-Core bandwidth. Emergency scheduling in progress.`;
+                future = '⚠️ Predicting thermal event in next 60 seconds. Recommend reducing active processes.';
+            } else if (cpu > 70) {
+                health = '🟡 WARNING: Elevated CPU utilisation. LinUCB governor applying adaptive throttling across P-Cores.';
+                process = `⚙️ ${state.procCount} processes monitored. Heavy tasks migrated to P-Cores for performance isolation.`;
+                future = '📈 Load trending upward. Governor predicting stabilisation in ~90 seconds.';
+            } else {
+                health = `✅ System healthy. CPU at ${cpu}%. Thermal headroom nominal. No intervention required.`;
+                process = `⚡ ${state.procCount} processes optimally routed. LinUCB confidence: 95%. Regret: ${state.regret.toFixed(2)}.`;
+                future = '📊 Stable workload predicted for next 5 minutes. E-Core migration recommended for background tasks.';
+            }
+            document.getElementById('aizenHealth').textContent = health;
+            document.getElementById('aizenProcess').textContent = process;
+            document.getElementById('aizenFuture').textContent = future;
+        }
+
+        // ═══════════════════════════════════════════════════════════════
+        //  SIMULATION TICK
+        // ═══════════════════════════════════════════════════════════════
+        function tick() {
+            if (state.simSpike) {
+                state.cpu = 92 + Math.random() * 6;
+            } else {
+                state.cpu += (Math.random() - 0.48) * 4;
+                state.cpu = Math.max(10, Math.min(89, state.cpu));
+            }
+            state.mem += (Math.random() - 0.5) * 2;
+            state.mem = Math.max(20, Math.min(85, state.mem));
+            state.memGB = (state.mem / 100 * 16).toFixed(1);
+
+            state.cores.forEach(c => {
+                if (state.simSpike) {
+                    c.pct = c.type === 'P' ? Math.floor(85 + Math.random() * 12) : Math.floor(60 + Math.random() * 30);
+                } else {
+                    c.pct += (Math.random() - 0.5) * 8;
+                    c.pct = Math.max(1, Math.min(95, c.pct));
+                }
+                c.pct = Math.round(c.pct);
+            });
+
+            state.processes.forEach(p => {
+                if (state.simSpike) {
+                    p.cpu = p.cores === 'P-Core' ? 25 + Math.random() * 30 : 8 + Math.random() * 15;
+                } else {
+                    p.cpu += (Math.random() - 0.5) * 2;
+                    p.cpu = Math.max(0.5, Math.min(60, p.cpu));
+                }
+                p.lat = 0.7 + Math.random() * 1.5;
+            });
+
+            // Update DOM
+            const cpuR = Math.round(state.cpu);
+            document.getElementById('cpuVal').textContent = cpuR;
+            document.getElementById('memVal').textContent = Math.round(state.mem);
+            document.getElementById('memGB').textContent = `${state.memGB} / 16 GB`;
+            document.getElementById('procCount').textContent = state.procCount;
+            document.getElementById('regretVal').textContent = state.regret.toFixed(2);
+
+            // CPU gauge color
+            const cpuColor = state.cpu > 90 ? '#ff2244' : state.cpu > 70 ? '#ff8800' : '#00d4ff';
+            document.getElementById('cpuVal').style.color = cpuColor;
+            updateGauge(cpuGauge, cpuR, cpuColor);
+            updateGauge(memGauge, Math.round(state.mem), '#ff8800');
+
+            updateCoreGrid();
+            renderProcessTable();
+            pushChartData();
+            updateAizen();
+
+            // CRITICAL ALERT
+            if (state.cpu > 90 && !state.alertActive) {
+                triggerAlert();
+            } else if (state.cpu <= 90 && state.simSpike === false && state.alertActive) {
+                // auto clear if cpu drops naturally
+                clearAlert();
+            }
+        }
+        setInterval(tick, 2000);
+
+        // ═══════════════════════════════════════════════════════════════
+        //  CRITICAL ALERT
+        // ═══════════════════════════════════════════════════════════════
+        function triggerAlert() {
+            state.alertActive = true;
+            document.getElementById('criticalAlert').style.display = 'block';
+            document.getElementById('alertSub').textContent = `CPU at ${Math.round(state.cpu)}% — critical threshold exceeded. Thermal protection engaged.`;
+            document.getElementById('jarvisOrb').classList.add('alert-state');
+            jarvisSpeak(`Sir, critical alert! CPU utilisation has exceeded ${Math.round(state.cpu)} percent. I repeat — CPU overload detected. Immediate intervention required. Initiating thermal protection protocols. Please reduce active workloads.`);
+        }
+        function dismissAlert() {
+            clearAlert();
+        }
+        function clearAlert() {
+            state.alertActive = false;
+            document.getElementById('criticalAlert').style.display = 'none';
+            document.getElementById('jarvisOrb').classList.remove('alert-state');
+        }
+
+        // ═══════════════════════════════════════════════════════════════
+        //  JARVIS SPEECH ENGINE
+        // ═══════════════════════════════════════════════════════════════
+        let synthVoice = null;
+        function loadVoice() {
+            const voices = speechSynthesis.getVoices();
+            // Prefer deep male English voice
+            synthVoice = voices.find(v => v.name.toLowerCase().includes('david')) ||
+                voices.find(v => v.name.toLowerCase().includes('mark')) ||
+                voices.find(v => v.name.toLowerCase().includes('male')) ||
+                voices.find(v => v.lang === 'en-US' && v.localService) ||
+                voices.find(v => v.lang.startsWith('en')) || null;
+        }
+        speechSynthesis.onvoiceschanged = loadVoice;
+        loadVoice();
+
+        function jarvisSpeak(text, onDone) {
+            if (!('speechSynthesis' in window)) return;
+            speechSynthesis.cancel();
+            const utt = new SpeechSynthesisUtterance(text);
+            if (synthVoice) utt.voice = synthVoice;
+            utt.rate = 0.92; utt.pitch = 0.85; utt.volume = 1;
+            utt.onstart = () => {
+                state.speaking = true;
+                document.getElementById('jarvisOrb').classList.add('speaking');
+                document.getElementById('voiceWave')?.classList.remove('inactive');
+                setJpStatus(text);
+            };
+            utt.onend = utt.onerror = () => {
+                state.speaking = false;
+                document.getElementById('jarvisOrb').classList.remove('speaking');
+                document.getElementById('voiceWave')?.classList.add('inactive');
+                if (onDone) onDone();
+            };
+            speechSynthesis.speak(utt);
+        }
+
+        function setJpStatus(text) {
+            const el = document.getElementById('jpStatus');
+            if (el) el.innerHTML = `<em>"${text}"</em>`;
+        }
+
+        // ═══════════════════════════════════════════════════════════════
+        //  JARVIS PANEL
+        // ═══════════════════════════════════════════════════════════════
+        function toggleJarvisPanel() {
+            const p = document.getElementById('jarvisPanel');
+            p.style.display = p.style.display === 'block' ? 'none' : 'block';
+        }
+
+        function speakStatus() {
+            const cpu = Math.round(state.cpu);
+            const mem = Math.round(state.mem);
+            const regret = state.regret.toFixed(2);
+            const heavy = state.processes.filter(p => p.cores === 'P-Core').length;
+            const light = state.processes.filter(p => p.cores === 'E-Core').length;
+            const status = cpu > 70 ? 'elevated' : cpu > 50 ? 'moderate' : 'nominal';
+            jarvisSpeak(
+                `System status report. CPU utilisation: ${cpu} percent — ${status}. Memory usage: ${mem} percent, ${state.memGB} gigabytes of 16. ` +
+                `${state.procCount} processes monitored: ${heavy} routed to P-Cores for heavy workloads, ${light} on E-Cores for efficiency. ` +
+                `Decision engine: LinUCB. Cumulative regret: ${regret}. All governors online.`
+            );
+        }
+
+        function speakProcesses() {
+            const lines = state.processes.map(p =>
+                `Process ${p.name}, PID ${p.pid}: classified as ${p.cls} workload, assigned to ${p.cores}, using ${p.cpu.toFixed(1)} percent CPU.`
+            ).join(' ');
+            jarvisSpeak(`Running process narration. ${lines}`);
+        }
+
+        // ═══════════════════════════════════════════════════════════════
+        //  SIMULATE CPU SPIKE
+        // ═══════════════════════════════════════════════════════════════
+        function simulateCPUSpike() {
+            if (state.simSpike) return;
+            state.simSpike = true;
+            const btn = document.getElementById('simBtn');
+            if (btn) { btn.textContent = '🔴 SPIKE ACTIVE (10s)'; btn.style.opacity = '0.6'; }
+            setTimeout(() => {
+                state.simSpike = false;
+                clearAlert();
+                if (btn) { btn.textContent = '⚠ SIMULATE CPU SPIKE'; btn.style.opacity = '1'; }
+                jarvisSpeak('CPU spike simulation complete. Systems returning to nominal operation. All processes re-stabilised.');
+            }, 10000);
+        }
+
+        // ═══════════════════════════════════════════════════════════════
+        //  AUTO NARRATION (every 30 seconds)
+        // ═══════════════════════════════════════════════════════════════
+        function autoNarrate() {
+            if (!state.alertActive) speakStatus();
+        }
+        state.narrationTimer = setInterval(autoNarrate, 30000);
+
+        // ═══════════════════════════════════════════════════════════════
+        //  INTRO SPEECH ON LOAD
+        // ═══════════════════════════════════════════════════════════════
+        function playIntro() {
+            jarvisSpeak(
+                'Good morning. I am J.A.R.V.I.S — Just A Rather Very Intelligent System. ' +
+                'Adaptive CPU Intelligence online. Monitoring 24 cores across 12 physical processors at 3.0 gigahertz. ' +
+                'LinUCB bandit governor active. Decision engine calibrated. ' +
+                'All systems nominal. I will alert you immediately if CPU exceeds 90 percent. ' +
+                'Click my orb at any time for a full system status report.',
+                () => {
+                    // after intro, narrate processes once
+                    setTimeout(() => speakStatus(), 2500);
+                }
+            );
+        }
+        // Wait for voices to load, then speak
+        setTimeout(() => {
+            loadVoice();
+            playIntro();
+        }, 1500);
+
+        // Initial renders
+        tick(); renderProcessTable();
+        document.getElementById('voiceWave').classList.add('inactive');
+    </script>
 </body>
+
 </html>
