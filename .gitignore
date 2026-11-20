@@ -1,11 +1,99 @@
+# ==============================================================================
+# Virtual Environments
+# ==============================================================================
+.venv/
+venv/
+env/
+ENV/
+env.bak/
+venv.bak/
+
+# ==============================================================================
+# Byte-compiled / Optimized / Cache Files
+# ==============================================================================
 __pycache__/
 *.py[cod]
 *$py.class
-venv/
+.pytest_cache/
+.ruff_cache/
+.mypy_cache/
+
+# ==============================================================================
+# Test & Coverage Artifacts
+# ==============================================================================
+.coverage
+.coverage.*
+htmlcov/
+nosetests.xml
+coverage.xml
+*.cover
+*.py,cover
+
+# ==============================================================================
+# Packaging & Distributions
+# ==============================================================================
+dist/
+build/
+*.egg-info/
+*.egg
+.eggs/
+wheels/
+develop-eggs/
+downloads/
+eggs/
+parts/
+var/
+sdist/
+
+# ==============================================================================
+# Environment Variables & Secrets
+# ==============================================================================
 .env
+.env.*
+!.env.example
+.vercel/
+
+# ==============================================================================
+# IDEs & Operating System Artifacts
+# ==============================================================================
 .idea/
 .vscode/
-scheduler_log.csv
+*.swp
+*.swo
+*~
+.DS_Store
+Thumbs.db
+ehthumbs.db
+
+# ==============================================================================
+# Logs & Temporary Files
+# ==============================================================================
+*.log
+tmp*
+*.tmp
+temp/
+*temp.txt
+clean_output.txt
+full_out.txt
+deploy.txt
+current_deploy_url.txt
+models.txt
+vercel_output.txt
+test.html
+test_aizen.html
+static/vercel_clean.txt
+static/vercel_out.txt
+static/verified_url.txt
+static/test_deploy.html
+
+# ==============================================================================
+# Runtime State & Dynamic Engine Outputs
+# ==============================================================================
 pids.txt
-.vercel
-.env*
+scheduler_log.csv
+bandit_stats.json
+
+# ==============================================================================
+# Evaluation Outputs & Raw Runs
+# ==============================================================================
+results/raw/
