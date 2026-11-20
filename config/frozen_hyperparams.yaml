@@ -1,0 +1,34 @@
+# ==============================================================================
+# AI-DAX Frozen Hyperparameters
+# Preregistered and locked prior to final benchmark evaluation.
+# ==============================================================================
+
+linucb:
+  context_dim: 4
+  num_arms: 3 # 0: E-core, 1: P-core, 2: Unpinned / CFS
+  exploration_alpha: 1.0 # Tuned on synthetic validation set
+  ridge_lambda: 1.0 # Ridge regularization parameter
+  feature_clip_min: -10.0
+  feature_clip_max: 10.0
+
+thompson_sampling:
+  context_dim: 4
+  num_arms: 3
+  v: 0.3 # Posterior variance multiplier
+  ridge_lambda: 1.0
+
+scaler:
+  calibration_steps: 100 # Freeze Welford normalization after calibration
+  eps: 0.0001
+
+reward:
+  mode: "R_perf"
+  alpha_progress: 1.0
+  beta_latency: 0.5
+  migration_penalty: 0.05
+
+adversarial_defenses:
+  rate_limit_interval_s: 0.2 # Min seconds between per-PID bandit updates
+  anomaly_mahalanobis_threshold: 3.5
+  reward_winsorize_min: -2.0
+  reward_winsorize_max: 2.0
