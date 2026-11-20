@@ -22,7 +22,6 @@ import logging
 import os
 import signal
 import sys
-import tempfile
 import time
 import warnings
 from dataclasses import dataclass
@@ -30,6 +29,8 @@ from typing import Any
 
 import numpy as np
 import psutil
+
+from core.fs import atomic_write_json, atomic_write_text
 
 warnings.filterwarnings("ignore")
 
@@ -353,21 +354,10 @@ class AIScheduler:
             "beta_reward": self.beta_reward,
             "arm_params": self.bandit.get_params_snapshot(),
         }
-        target = self.stats_file
-        dir_name = os.path.dirname(os.path.abspath(target)) or "."
-        tmp_path = None
         try:
-            tmp_fd, tmp_path = tempfile.mkstemp(dir=dir_name, prefix=".stats_", suffix=".tmp")
-            with os.fdopen(tmp_fd, "w", encoding="utf-8") as f:
-                json.dump(stats, f)
-            os.replace(tmp_path, target)
+            atomic_write_json(self.stats_file, stats)
         except Exception as e:
             logger.debug("Failed atomic write for bandit stats: %s", e)
-            if tmp_path and os.path.exists(tmp_path):
-                try:
-                    os.remove(tmp_path)
-                except OSError:
-                    pass
 
     def _write_csv_rows(self, rows: list[str]) -> None:
         """Atomically append rows to the CSV log, keeping the most recent entries."""
@@ -375,7 +365,6 @@ class AIScheduler:
             return
 
         target = self.log_file
-        dir_name = os.path.dirname(os.path.abspath(target)) or "."
         log_lines: list[str] = []
 
         if os.path.exists(target):
@@ -386,24 +375,18 @@ class AIScheduler:
                 log_lines = []
 
         log_lines.extend(rows)
-        tmp_path = None
+        content_parts: list[str] = []
+        if not log_lines or not log_lines[0].startswith("timestamp"):
+            content_parts.append(CSV_HEADER)
+        for line in log_lines:
+            if line.startswith("timestamp"):
+                continue
+            content_parts.append(line)
+
         try:
-            tmp_fd, tmp_path = tempfile.mkstemp(dir=dir_name, prefix=".log_", suffix=".tmp")
-            with os.fdopen(tmp_fd, "w", encoding="utf-8") as f:
-                if not log_lines or not log_lines[0].startswith("timestamp"):
-                    f.write(CSV_HEADER)
-                for line in log_lines:
-                    if line.startswith("timestamp"):
-                        continue
-                    f.write(line)
-            os.replace(tmp_path, target)
+            atomic_write_text(target, "".join(content_parts))
         except Exception as e:
             logger.debug("Failed atomic CSV write: %s", e)
-            if tmp_path and os.path.exists(tmp_path):
-                try:
-                    os.remove(tmp_path)
-                except OSError:
-                    pass
 
     def run_cycle(self) -> list[str]:
         """Execute one scheduling and adaptation cycle across all active processes."""
