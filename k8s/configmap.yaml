@@ -1,0 +1,10 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: aidax-config
+  namespace: aidax
+data:
+  AIDAX_ENV: "production"
+  AIDAX_LOG_LEVEL: "INFO"
+  AIDAX_DB_URL: "sqlite+aiosqlite:///data/aidax.db"
+  PYTHONUNBUFFERED: "1"

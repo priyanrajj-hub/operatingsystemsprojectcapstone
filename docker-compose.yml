@@ -1,0 +1,38 @@
+version: "3.9"
+
+services:
+  aidax-api:
+    build:
+      context: .
+      dockerfile: docker/Dockerfile
+    container_name: aidax-telemetry-server
+    restart: unless-stopped
+    ports:
+      - "127.0.0.1:8000:8000"
+    environment:
+      - AIDAX_ENV=production
+      - AIDAX_LOG_LEVEL=INFO
+      - AIDAX_API_TOKEN=change-me-in-production-token
+      - AIDAX_DB_URL=sqlite+aiosqlite:///data/aidax.db
+    volumes:
+      - aidax-data:/app/data
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/api/v1/health')"]
+      interval: 15s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
+    deploy:
+      resources:
+        limits:
+          cpus: "2.0"
+          memory: 1024M
+        reservations:
+          cpus: "0.5"
+          memory: 256M
+    security_opt:
+      - no-new-privileges:true
+
+volumes:
+  aidax-data:
+    driver: local
