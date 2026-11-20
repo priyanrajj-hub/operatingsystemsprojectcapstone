@@ -34,7 +34,7 @@ You must explicitly provide a Gemini API Key to enable Aizen and Jarvis.
 Create a file named `.env` in the root folder and drop your key inside:
 
 ```ini
-GEMINI_API_KEY=AIzaSyYourSecretKeyHere...
+GEMINI_API_KEY=your-gemini-api-key-here
 ```
 
 ### 2. Boot the Telemetry Engine
