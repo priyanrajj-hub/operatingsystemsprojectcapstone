@@ -65,39 +65,47 @@ class LinUCBArm:
     One arm of the LinUCB contextual bandit.
 
     Maintains:
-      A     — (d x d) design matrix (identity-initialized for regularisation)
+      A     — (d x d) design matrix (regularised with ridge lambda * I)
       b     — (d,) reward-weighted context accumulator
-      theta — A^{-1} b parameter vector (lazily recomputed when dirty)
+      A_inv — exact inverse maintained incrementally via Sherman-Morrison rank-1 updates
+      theta — A^{-1} b parameter vector
     """
 
-    def __init__(self, d: int, exploration_alpha: float = 1.5) -> None:
+    def __init__(self, d: int, exploration_alpha: float = 1.5, ridge_lambda: float = 1.0) -> None:
         self.d = d
         self.exploration_alpha = exploration_alpha
-        self.A = np.eye(d, dtype=float)
+        self.ridge_lambda = ridge_lambda
+        self.A = ridge_lambda * np.eye(d, dtype=float)
         self.b = np.zeros(d, dtype=float)
-        self.A_inv = np.eye(d, dtype=float)
+        self.A_inv = (1.0 / ridge_lambda) * np.eye(d, dtype=float)
         self.theta = np.zeros(d, dtype=float)
-        self._dirty = False
-
-    def _recompute(self) -> None:
-        """Lazily invert A and update theta if parameter state is dirty."""
-        if self._dirty:
-            self.A_inv = np.linalg.inv(self.A)
-            self.theta = self.A_inv @ self.b
-            self._dirty = False
 
     def get_ucb_score(self, x: np.ndarray) -> float:
         """Return UCB score = expected reward + exploration bonus."""
-        self._recompute()
         expected = float(x @ self.theta)
-        uncertainty = float(np.sqrt(np.maximum(0.0, x @ self.A_inv @ x)))
+        var = float(x @ self.A_inv @ x)
+        uncertainty = float(np.sqrt(np.maximum(0.0, var)))
         return expected + self.exploration_alpha * uncertainty
 
+    def _recompute(self) -> None:
+        """Maintained for backward compatibility; state is updated incrementally via Sherman-Morrison."""
+        pass
+
     def update(self, x: np.ndarray, reward: float) -> None:
-        """Online update after observing reward for context x."""
+        """Incremental Sherman-Morrison rank-1 update with numerical guards."""
+        if not np.all(np.isfinite(x)) or not np.isfinite(reward):
+            return
+
+        u = self.A_inv @ x
+        denom = 1.0 + float(x @ u)
+        if denom > 1e-12:
+            self.A_inv -= np.outer(u, u) / denom
+        else:
+            self.A_inv = np.linalg.inv(self.A + np.outer(x, x))
+
         self.A += np.outer(x, x)
         self.b += reward * x
-        self._dirty = True
+        self.theta = self.A_inv @ self.b
 
 
 class LinUCBBandit:
@@ -425,7 +433,12 @@ class AIScheduler:
 
                 self.pid_decision_count[pid] = self.pid_decision_count.get(pid, 0) + 1
 
-                if self.pid_decision_count[pid] <= self.cold_start_threshold:
+                # Dynamic cold start: heuristic during system warmup or during per-PID 2-cycle priming
+                is_cold = (self.bandit.total_decisions < self.cold_start_threshold) or (
+                    self.pid_decision_count[pid] < 2
+                )
+
+                if is_cold:
                     heur_class = "Heavy" if (cpu > 20 and vol_rate < 500) else "Light"
                     action = 0 if heur_class == "Heavy" else 1
                     decision_source = "heuristic"
@@ -462,20 +475,39 @@ class AIScheduler:
 
         self._write_csv_rows(rows)
         self._write_bandit_stats()
+        # Evict dead processes to prevent memory leak
+        self.prune_dead_pids({pid for pid, _ in active})
         return rows
 
-    def reset_affinities(self) -> None:
+    def prune_dead_pids(self, active_pids: set[int]) -> None:
+        """Evict cached state for dead processes to prevent memory leaks."""
+        known = (
+            set(self.history.keys())
+            | set(self.pid_decision_count.keys())
+            | set(self.pending.keys())
+        )
+        dead = known - active_pids
+        for pid in dead:
+            self.history.pop(pid, None)
+            self.pid_decision_count.pop(pid, None)
+            self.pending.pop(pid, None)
+
+    def reset_affinities(self) -> int:
         """Reset CPU affinities of all active tracked processes to all available cores."""
         logger.info("Resetting process CPU affinities...")
         active = self.get_active_pids()
         total_cores = os.cpu_count() or 4
         all_cores = list(range(total_cores))
+        count = 0
         for pid, _ in active:
             try:
                 p = psutil.Process(pid)
-                p.cpu_affinity(all_cores)
+                if hasattr(p, "cpu_affinity"):
+                    p.cpu_affinity(all_cores)
+                    count += 1
             except Exception:
                 pass
+        return count
 
     def run(self) -> None:
         """Continuous execution loop."""
@@ -542,6 +574,11 @@ def main() -> None:
         action="store_true",
         help="Enable verbose debug logging",
     )
+    parser.add_argument(
+        "--recover",
+        action="store_true",
+        help="Emergency recovery: release all tracked processes from affinity constraints and exit",
+    )
     args = parser.parse_args()
 
     log_level = logging.DEBUG if args.verbose else logging.INFO
@@ -561,16 +598,30 @@ def main() -> None:
     )
     scheduler = AIScheduler(config=config)
 
+    if args.recover:
+        logger.info("Executing affinity recovery across all tracked processes...")
+        released = scheduler.reset_affinities()
+        logger.info("Affinity recovery complete: %d processes restored to all cores.", released)
+        sys.exit(0)
+
+    import atexit
+
+    atexit.register(scheduler.reset_affinities)
+
     def shutdown_handler(signum: int, frame: Any) -> None:
         logger.info("Signal %d received. Resetting affinities and exiting...", signum)
         scheduler.reset_affinities()
         sys.exit(0)
 
     signal.signal(signal.SIGINT, shutdown_handler)
-    signal.signal(signal.SIGTERM, shutdown_handler)
+    if hasattr(signal, "SIGTERM"):
+        signal.signal(signal.SIGTERM, shutdown_handler)
 
     scheduler.run()
 
+
+# Standard alias
+CPUScheduler = AIScheduler
 
 if __name__ == "__main__":
     main()
