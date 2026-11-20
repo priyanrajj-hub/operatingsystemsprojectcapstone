@@ -20,6 +20,7 @@ def test_parse_cpulist() -> None:
 
 def test_linux_cpu_core_atom_sysfs_mock() -> None:
     """Verify detection via /sys/devices/cpu_core/cpus and /sys/devices/cpu_atom/cpus."""
+
     def fake_exists(path: str) -> bool:
         if path in (
             "/sys/devices/cpu_core/cpus",
@@ -36,7 +37,10 @@ def test_linux_cpu_core_atom_sysfs_mock() -> None:
             return mock_open(read_data="16-23\n")()
         return mock_open(read_data="")()
 
-    with patch("os.path.exists", side_effect=fake_exists), patch("builtins.open", side_effect=fake_open):
+    with (
+        patch("os.path.exists", side_effect=fake_exists),
+        patch("builtins.open", side_effect=fake_open),
+    ):
         topo = detect_linux_topology()
         assert topo is not None
         assert topo.is_heterogeneous is True

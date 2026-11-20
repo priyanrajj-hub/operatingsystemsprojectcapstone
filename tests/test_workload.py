@@ -1,8 +1,15 @@
 from __future__ import annotations
 
 import os
+
 import psutil
-from aidax.workload import heavy_worker_finite, light_worker_finite, spawn_workload, terminate_workers
+
+from aidax.workload import (
+    heavy_worker_finite,
+    light_worker_finite,
+    spawn_workload,
+    terminate_workers,
+)
 
 
 def test_heavy_worker_finite() -> None:

@@ -309,7 +309,9 @@ def run_condition_bandit(
 
                             vol_rate = (ctx.voluntary - scheduler.history[pid]["vol"]) / dt
                             invol_rate = (ctx.involuntary - scheduler.history[pid]["invol"]) / dt
-                            time_since_switch = cycle_start - scheduler.history[pid]["last_switch_time"]
+                            time_since_switch = (
+                                cycle_start - scheduler.history[pid]["last_switch_time"]
+                            )
                             current_core = scheduler._get_current_core_assignment(pid)
 
                             scheduler.history[pid]["vol"] = ctx.voluntary

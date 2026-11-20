@@ -4,8 +4,7 @@ Integration tests for modern FastAPI routers, security headers, and scheduler co
 
 from __future__ import annotations
 
-import os
-
+import pytest
 from fastapi.testclient import TestClient
 
 from api.app import create_app
@@ -73,7 +72,7 @@ def test_api_security_headers() -> None:
     assert "Content-Security-Policy" in headers
 
 
-def test_api_scheduler_reset_auth(monkeypatch: os._Environ) -> None:
+def test_api_scheduler_reset_auth(monkeypatch: pytest.MonkeyPatch) -> None:
     """Test token enforcement on emergency reset endpoint."""
     app = create_app()
     client = TestClient(app)

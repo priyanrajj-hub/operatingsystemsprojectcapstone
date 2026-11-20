@@ -10,11 +10,11 @@ from aidax.analysis import (
     format_json_summary,
     format_markdown_table,
     format_text_report,
+    holm_bonferroni_correction,
     load_results,
     paired_ttest,
     parse_log_text,
     summarise_condition,
-    holm_bonferroni_correction,
 )
 
 
