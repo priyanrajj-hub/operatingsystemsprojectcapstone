@@ -14,7 +14,7 @@ def parse():
     
     out_lines = []
     
-    out_lines.append('| Condition | Mean CPU Load | Mean Involuntary Context Switches | Jain\\'s Fairness | Heavy Task Completion Time |')
+    out_lines.append("| Condition | Mean CPU Load | Mean Involuntary Context Switches | Jain's Fairness | Heavy Task Completion Time |")
     out_lines.append('|---|---|---|---|---|')
     
     for cond, trials in data.items():
@@ -30,7 +30,7 @@ def parse():
             j_m, j_s = np.mean(jain_arr), np.std(jain_arr, ddof=1)
             t_m, t_s = np.mean(time_arr), np.std(time_arr, ddof=1)
             
-            out_lines.append(f'| {cond} | {c_m:.1f}% (±{c_s:.1f}) | {tx_m:.1f} (±{tx_s:.1f}) | {j_m:.2f} (±{j_s:.2f}) | {t_m:.1f}s (±{t_s:.1f}) |')
+            out_lines.append(f'| {cond} | {c_m:.1f}% (Â±{c_s:.1f}) | {tx_m:.1f} (Â±{tx_s:.1f}) | {j_m:.2f} (Â±{j_s:.2f}) | {t_m:.1f}s (Â±{t_s:.1f}) |')
     
     out_lines.append('\n### Paired T-Test (P-values) against bandit_adaptive:')
     if 'bandit_adaptive' in data:
