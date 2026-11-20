@@ -22,47 +22,66 @@ import csv
 import json
 import logging
 import os
+import re
+import time
+from collections import defaultdict
 from io import StringIO
 from pathlib import Path
 from typing import Any
 
 import psutil
-from dotenv import load_dotenv
-from fastapi import FastAPI, WebSocket, WebSocketDisconnect
+from fastapi import FastAPI, Request, WebSocket, WebSocketDisconnect
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse, RedirectResponse
 from fastapi.staticfiles import StaticFiles
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
-load_dotenv()
+from core.config import settings
 
 logger = logging.getLogger("aidax.api")
 
 app = FastAPI(title="AI-DAX Lite Dashboard", version="1.0.0")
 
-# Optional Gemini Integration
-API_KEY = os.environ.get("GEMINI_API_KEY", "")
+# Centralized Settings & Optional Gemini Integration
+API_KEY = settings.gemini_api_key
 _genai_available = False
-if API_KEY:
+if API_KEY and not API_KEY.startswith("your_") and "placeholder" not in API_KEY.lower():
     try:
         import google.generativeai as genai
 
         genai.configure(api_key=API_KEY)
         _genai_available = True
     except Exception as e:
-        logger.warning("Could not initialize google.generativeai: %s", e)
+        logger.warning("Could not initialize google.generativeai: %s", type(e).__name__)
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
+    allow_origins=settings.cors_origins,
     allow_credentials=True,
-    allow_methods=["*"],
+    allow_methods=["GET", "POST"],
     allow_headers=["*"],
 )
 
-LOG_FILE = os.environ.get("AIDAX_LOG_FILE", "scheduler_log.csv")
-PID_FILE = os.environ.get("AIDAX_PID_FILE", "pids.txt")
-BANDIT_STATS_FILE = os.environ.get("AIDAX_STATS_FILE", "bandit_stats.json")
+LOG_FILE = settings.log_file
+PID_FILE = settings.pid_file
+BANDIT_STATS_FILE = settings.stats_file
+
+# Sliding-window IP Rate Limiter for AI Proxy Endpoints (max 10 req/min per IP)
+_ai_request_log: dict[str, list[float]] = defaultdict(list)
+MAX_AI_REQUESTS_PER_MINUTE = 10
+AI_RATE_LIMIT_WINDOW = 60.0
+
+
+def check_ai_rate_limit(client_ip: str) -> bool:
+    """Return True if request is allowed, False if rate limited."""
+    now = time.time()
+    cutoff = now - AI_RATE_LIMIT_WINDOW
+    timestamps = [t for t in _ai_request_log[client_ip] if t > cutoff]
+    if len(timestamps) >= MAX_AI_REQUESTS_PER_MINUTE:
+        return False
+    timestamps.append(now)
+    _ai_request_log[client_ip] = timestamps
+    return True
 
 
 def read_csv_safe(max_rows: int = 300) -> list[dict[str, str]]:
@@ -214,17 +233,28 @@ def api_bandit_stats() -> JSONResponse:
 
 
 class TelemetryPayload(BaseModel):
-    cpu_percent_overall: float
-    memory_percent: float
-    total_decisions: int
-    regret: float
-    voice_query: str = ""
-    language: str = "English"
+    cpu_percent_overall: float = Field(ge=0.0, le=100.0)
+    memory_percent: float = Field(ge=0.0, le=100.0)
+    total_decisions: int = Field(ge=0)
+    regret: float = Field(ge=0.0)
+    voice_query: str = Field(default="", max_length=250)
+    language: str = Field(default="English", max_length=50)
 
 
 @app.post("/api/aizen")
-async def api_aizen(payload: TelemetryPayload) -> JSONResponse:
-    """Aizen AI telemetry insights panel endpoint."""
+async def api_aizen(payload: TelemetryPayload, request: Request) -> JSONResponse:
+    """Aizen AI telemetry insights panel endpoint with strict rate limiting and error masking."""
+    client_ip = request.client.host if request.client else "127.0.0.1"
+    if not check_ai_rate_limit(client_ip):
+        return JSONResponse(
+            status_code=429,
+            content={
+                "health": "Rate Limit Exceeded",
+                "process": f"Max {MAX_AI_REQUESTS_PER_MINUTE} requests/min. Please wait before retrying.",
+                "future": "Bandit scheduling is unaffected.",
+            },
+        )
+
     if not API_KEY or not _genai_available:
         return JSONResponse(
             {
@@ -258,9 +288,12 @@ async def api_aizen(payload: TelemetryPayload) -> JSONResponse:
             raw_text = raw_text[:-3]
         clean_text = raw_text.strip()
         val = ast.literal_eval(clean_text)
-        return JSONResponse({"health": val[0], "process": val[1], "future": val[2]})
+        return JSONResponse(
+            {"health": str(val[0])[:200], "process": str(val[1])[:200], "future": str(val[2])[:200]}
+        )
     except Exception as e:
         err_str = str(e)
+        logger.warning("Aizen inference error: %s", type(e).__name__)
         if "429" in err_str or "quota" in err_str.lower():
             return JSONResponse(
                 {
@@ -271,32 +304,44 @@ async def api_aizen(payload: TelemetryPayload) -> JSONResponse:
             )
         return JSONResponse(
             {
-                "health": "Error running Aizen AI",
-                "process": err_str[:120],
-                "future": "",
+                "health": "Aizen Service Notice",
+                "process": "AI inference service temporarily unavailable.",
+                "future": "Local bandit and telemetry remain fully operational.",
             }
         )
 
 
 @app.post("/api/jarvis")
-async def api_jarvis(payload: TelemetryPayload) -> JSONResponse:
-    """Multilingual assistant endpoint."""
+async def api_jarvis(payload: TelemetryPayload, request: Request) -> JSONResponse:
+    """Multilingual assistant endpoint with input sanitization and rate limiting."""
+    client_ip = request.client.host if request.client else "127.0.0.1"
+    if not check_ai_rate_limit(client_ip):
+        return JSONResponse(
+            status_code=429,
+            content={"response": "Speech assistant rate limit reached. Please wait a minute."},
+        )
+
     if not API_KEY or not _genai_available:
         return JSONResponse({"response": "Speech assistant offline: missing GEMINI_API_KEY."})
 
+    # Sanitize query input
+    clean_query = re.sub(r"[\r\n\t]", " ", payload.voice_query).strip()[:200]
+    clean_lang = re.sub(r"[^A-Za-z0-9 -]", "", payload.language).strip()[:30]
+
     prompt = (
-        f"You are Jarvis, an operating system assistant. User says: '{payload.voice_query}'. "
-        f"Language: '{payload.language}'. Current CPU: {payload.cpu_percent_overall}%. "
-        f"Respond concisely in '{payload.language}' exclusively."
+        f"You are Jarvis, an operating system assistant. User says: '{clean_query}'. "
+        f"Language: '{clean_lang}'. Current CPU: {payload.cpu_percent_overall}%. "
+        f"Respond concisely in '{clean_lang}' exclusively."
     )
     try:
         import google.generativeai as genai
 
         model = genai.GenerativeModel("gemini-flash-lite-latest")
         resp = await asyncio.to_thread(model.generate_content, prompt)
-        return JSONResponse({"response": resp.text.strip()})
-    except Exception:
-        return JSONResponse({"response": "Error reaching language model server."})
+        return JSONResponse({"response": resp.text.strip()[:500]})
+    except Exception as e:
+        logger.warning("Jarvis speech error: %s", type(e).__name__)
+        return JSONResponse({"response": "Speech assistant temporarily unavailable."})
 
 
 # ─────────────────────────────────────────────────────────────────────
