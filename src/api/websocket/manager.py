@@ -29,7 +29,9 @@ class ConnectionManager:
         """Remove a disconnected WebSocket client."""
         if websocket in self.active_connections:
             self.active_connections.remove(websocket)
-            logger.info("WebSocket client disconnected. Total active: %d", len(self.active_connections))
+            logger.info(
+                "WebSocket client disconnected. Total active: %d", len(self.active_connections)
+            )
 
     async def broadcast(self, message: LiveWebSocketMessage) -> None:
         """Broadcast structured event to all active clients."""

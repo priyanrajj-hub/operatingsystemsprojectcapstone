@@ -89,7 +89,10 @@ class StableLinUCBBandit:
         self.context_dim = context_dim
         self.exploration_alpha = exploration_alpha
         self.num_arms = num_arms
-        self.arms = [StableLinUCBArm(context_dim, exploration_alpha=exploration_alpha) for _ in range(num_arms)]
+        self.arms = [
+            StableLinUCBArm(context_dim, exploration_alpha=exploration_alpha)
+            for _ in range(num_arms)
+        ]
         self.total_decisions = 0
 
     def select_action(self, context: np.ndarray) -> tuple[int, float]:
@@ -110,5 +113,8 @@ class StableLinUCBBandit:
             arm._solve_theta()
         return {
             "total_decisions": self.total_decisions,
-            "arms": [{"theta": arm.theta.tolist(), "exploration_alpha": arm.exploration_alpha} for arm in self.arms],
+            "arms": [
+                {"theta": arm.theta.tolist(), "exploration_alpha": arm.exploration_alpha}
+                for arm in self.arms
+            ],
         }

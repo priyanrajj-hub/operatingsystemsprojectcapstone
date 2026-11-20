@@ -38,7 +38,7 @@ async def get_scheduler_stats() -> dict[str, Any]:
 
 @router.post("/reset")
 async def reset_affinities(
-    x_api_token: str | None = Header(default=None, alias="X-API-Token")
+    x_api_token: str | None = Header(default=None, alias="X-API-Token"),
 ) -> dict[str, Any]:
     """
     Emergency reset: restores all managed processes to unconstrained CPU affinities.
@@ -47,7 +47,9 @@ async def reset_affinities(
     expected_token = os.getenv("AIDAX_API_TOKEN", "")
     if expected_token:
         if not verify_api_token(x_api_token, expected_token):
-            raise HTTPException(status_code=401, detail="Unauthorized: invalid or missing API token")
+            raise HTTPException(
+                status_code=401, detail="Unauthorized: invalid or missing API token"
+            )
 
     active_procs = _registry.get_valid_active_processes()
     reverted_count = _affinity.emergency_reset(active_procs)
@@ -63,12 +65,15 @@ async def recommend_action(payload: RoutingRequest) -> dict[str, Any]:
     """Query current LinUCB policy for process routing action."""
     import numpy as np
 
-    context = np.array([
-        min(1.0, payload.cpu_percent / 100.0),
-        min(1.0, payload.memory_mb / 1024.0),
-        min(1.0, payload.num_threads / 8.0),
-        1.0 if payload.is_bursty else 0.0,
-    ], dtype=float)
+    context = np.array(
+        [
+            min(1.0, payload.cpu_percent / 100.0),
+            min(1.0, payload.memory_mb / 1024.0),
+            min(1.0, payload.num_threads / 8.0),
+            1.0 if payload.is_bursty else 0.0,
+        ],
+        dtype=float,
+    )
 
     action, score = _bandit.select_action(context)
     core_type = "PERFORMANCE" if action == 1 else "EFFICIENCY"

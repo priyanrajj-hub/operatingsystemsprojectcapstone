@@ -20,7 +20,9 @@ _runner = ExperimentRunner(topology=_topology)
 class RunExperimentRequest(BaseModel):
     """Payload to trigger an experimental trial."""
 
-    condition: str = Field(description="One of: cfs, static_p, static_e, round_robin, heuristic, linucb, thompson_sampling")
+    condition: str = Field(
+        description="One of: cfs, static_p, static_e, round_robin, heuristic, linucb, thompson_sampling"
+    )
     duration_seconds: float = Field(default=5.0, ge=1.0, le=60.0)
     trial_index: int = Field(default=0, ge=0)
 

@@ -93,7 +93,9 @@ def test_api_scheduler_reset_auth(monkeypatch: os._Environ) -> None:
     assert bad_resp.status_code == 401
 
     # Accepted with valid token
-    good_resp = client.post("/api/v1/scheduler/reset", headers={"X-API-Token": "super-secret-token"})
+    good_resp = client.post(
+        "/api/v1/scheduler/reset", headers={"X-API-Token": "super-secret-token"}
+    )
     assert good_resp.status_code == 200
     assert good_resp.json()["status"] == "success"
 

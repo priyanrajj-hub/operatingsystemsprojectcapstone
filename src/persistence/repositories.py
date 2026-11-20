@@ -52,7 +52,9 @@ class ExperimentRepository:
 
     async def get_by_id(self, experiment_id: str) -> Experiment | None:
         """Retrieve an experiment by its primary ID."""
-        result = await self.session.execute(select(Experiment).where(Experiment.id == experiment_id))
+        result = await self.session.execute(
+            select(Experiment).where(Experiment.id == experiment_id)
+        )
         return result.scalars().first()
 
     async def complete(self, experiment_id: str, status: str = "COMPLETED") -> None:

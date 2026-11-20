@@ -121,12 +121,14 @@ class ProcessRegistry:
             with open(self.pid_file, "w", encoding="utf-8") as f:
                 for proc in self._processes.values():
                     f.write(
-                        json.dumps({
-                            "pid": proc.pid,
-                            "type": proc.workload_type,
-                            "start_time": proc.create_time,
-                            "experiment_id": proc.experiment_id,
-                        })
+                        json.dumps(
+                            {
+                                "pid": proc.pid,
+                                "type": proc.workload_type,
+                                "start_time": proc.create_time,
+                                "experiment_id": proc.experiment_id,
+                            }
+                        )
                         + "\n"
                     )
         except Exception as e:

@@ -39,7 +39,9 @@ def detect_linux_topology() -> CPUTopology | None:
                 else:
                     c_type = CoreType.HOMOGENEOUS
 
-                cores.append(ProcessorCore(core_id=cpu_id, physical_core_id=cpu_id, core_type=c_type))
+                cores.append(
+                    ProcessorCore(core_id=cpu_id, physical_core_id=cpu_id, core_type=c_type)
+                )
             except Exception as e:
                 logger.debug("Error reading sysfs file %s: %s", fpath, e)
 
@@ -76,7 +78,14 @@ def detect_linux_topology() -> CPUTopology | None:
                 e_cores = [c for c, f in freqs.items() if f <= threshold]
                 for c, freq_khz in freqs.items():
                     c_type = CoreType.PERFORMANCE if c in p_cores else CoreType.EFFICIENCY
-                    cores.append(ProcessorCore(core_id=c, physical_core_id=c, core_type=c_type, max_frequency_mhz=freq_khz / 1000.0))
+                    cores.append(
+                        ProcessorCore(
+                            core_id=c,
+                            physical_core_id=c,
+                            core_type=c_type,
+                            max_frequency_mhz=freq_khz / 1000.0,
+                        )
+                    )
 
                 return CPUTopology(
                     total_logical_cores=len(freqs),

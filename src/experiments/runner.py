@@ -64,7 +64,9 @@ class ExperimentRunner:
     ) -> TrialResult:
         """Execute a single trial under the specified scheduling condition."""
         if condition not in self.SUPPORTED_CONDITIONS:
-            raise ValueError(f"Unknown condition '{condition}'. Supported: {self.SUPPORTED_CONDITIONS}")
+            raise ValueError(
+                f"Unknown condition '{condition}'. Supported: {self.SUPPORTED_CONDITIONS}"
+            )
 
         supervisor = ProcessSupervisor()
         bandit = StableLinUCBBandit(context_dim=4, exploration_alpha=1.0)
@@ -77,7 +79,12 @@ class ExperimentRunner:
         fairness_samples: list[float] = []
         rr_toggle = 0
 
-        logger.info("Starting trial %d for condition '%s' (duration=%.1fs)", trial_index, condition, duration_seconds)
+        logger.info(
+            "Starting trial %d for condition '%s' (duration=%.1fs)",
+            trial_index,
+            condition,
+            duration_seconds,
+        )
 
         try:
             while time.time() - start_time < duration_seconds:
@@ -94,12 +101,15 @@ class ExperimentRunner:
                         continue
 
                     # Context: [cpu_pct/100, mem_mb/1024, threads/8, is_bursty]
-                    context = np.array([
-                        min(1.0, proc_stat.cpu_percent / 100.0),
-                        min(1.0, proc_stat.memory_mb / 1024.0),
-                        min(1.0, proc_stat.num_threads / 8.0),
-                        1.0 if "BURSTY" in managed.workload_type else 0.0,
-                    ], dtype=float)
+                    context = np.array(
+                        [
+                            min(1.0, proc_stat.cpu_percent / 100.0),
+                            min(1.0, proc_stat.memory_mb / 1024.0),
+                            min(1.0, proc_stat.num_threads / 8.0),
+                            1.0 if "BURSTY" in managed.workload_type else 0.0,
+                        ],
+                        dtype=float,
+                    )
 
                     # Determine action based on condition
                     target_cores: list[int] = []
@@ -117,7 +127,9 @@ class ExperimentRunner:
                         action = 0
                     elif condition == "round_robin":
                         rr_toggle = 1 - rr_toggle
-                        target_cores = self.topology.p_cores if rr_toggle == 1 else self.topology.e_cores
+                        target_cores = (
+                            self.topology.p_cores if rr_toggle == 1 else self.topology.e_cores
+                        )
                         action = rr_toggle
                     elif condition == "heuristic":
                         # Rule-based: heavy CPU (> 40%) gets P-cores
@@ -129,10 +141,14 @@ class ExperimentRunner:
                             action = 0
                     elif condition == "linucb":
                         action, score = bandit.select_action(context)
-                        target_cores = self.topology.p_cores if action == 1 else self.topology.e_cores
+                        target_cores = (
+                            self.topology.p_cores if action == 1 else self.topology.e_cores
+                        )
                     elif condition == "thompson_sampling":
                         action, score = ts_bandit.select_action(context)
-                        target_cores = self.topology.p_cores if action == 1 else self.topology.e_cores
+                        target_cores = (
+                            self.topology.p_cores if action == 1 else self.topology.e_cores
+                        )
 
                     supervisor.affinity_controller.set_affinity(managed, target_cores)
 
@@ -148,13 +164,15 @@ class ExperimentRunner:
                     elif condition == "thompson_sampling":
                         ts_bandit.update(action, context, reward)
 
-                    decisions.append({
-                        "timestamp": time.time(),
-                        "pid": managed.pid,
-                        "condition": condition,
-                        "action": action,
-                        "reward": reward,
-                    })
+                    decisions.append(
+                        {
+                            "timestamp": time.time(),
+                            "pid": managed.pid,
+                            "condition": condition,
+                            "action": action,
+                            "reward": reward,
+                        }
+                    )
 
                 time.sleep(cycle_interval_seconds)
 
@@ -165,7 +183,7 @@ class ExperimentRunner:
         avg_power = float(np.mean(power_samples)) if power_samples else 0.0
         avg_fairness = float(np.mean(fairness_samples)) if fairness_samples else 1.0
         elapsed = time.time() - start_time
-        edp = avg_power * (elapsed ** 2)
+        edp = avg_power * (elapsed**2)
 
         return TrialResult(
             condition=condition,

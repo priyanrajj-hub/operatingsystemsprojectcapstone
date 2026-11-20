@@ -17,16 +17,22 @@ class Settings(BaseModel):
     host: str = Field(default=os.environ.get("AIDAX_HOST", "127.0.0.1"))
     port: int = Field(default=int(os.environ.get("AIDAX_PORT", "8000")))
     debug: bool = Field(default=os.environ.get("AIDAX_DEBUG", "false").lower() == "true")
-    read_only_mode: bool = Field(default=os.environ.get("AIDAX_READ_ONLY", "false").lower() == "true")
+    read_only_mode: bool = Field(
+        default=os.environ.get("AIDAX_READ_ONLY", "false").lower() == "true"
+    )
 
     # Security & Auth
     api_token: str = Field(default=os.environ.get("AIDAX_API_TOKEN", "aidax-insecure-dev-token"))
-    require_auth: bool = Field(default=os.environ.get("AIDAX_REQUIRE_AUTH", "false").lower() == "true")
+    require_auth: bool = Field(
+        default=os.environ.get("AIDAX_REQUIRE_AUTH", "false").lower() == "true"
+    )
     cors_origins: list[str] = Field(default=["http://127.0.0.1:8000", "http://localhost:8000"])
     rate_limit_per_minute: int = Field(default=120)
 
     # Persistence
-    database_url: str = Field(default=os.environ.get("AIDAX_DATABASE_URL", "sqlite+aiosqlite:///aidax.db"))
+    database_url: str = Field(
+        default=os.environ.get("AIDAX_DATABASE_URL", "sqlite+aiosqlite:///aidax.db")
+    )
     checkpoint_dir: str = Field(default=os.environ.get("AIDAX_CHECKPOINT_DIR", "checkpoints"))
     results_dir: str = Field(default=os.environ.get("AIDAX_RESULTS_DIR", "results"))
 

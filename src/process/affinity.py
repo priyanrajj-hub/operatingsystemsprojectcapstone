@@ -30,7 +30,10 @@ class AffinityController:
             p = psutil.Process(managed_proc.pid)
             # Revalidate identity immediately before modification
             if abs(p.create_time() - managed_proc.create_time) > 0.1:
-                logger.error("PID %d revalidated create_time mismatch! Refusing affinity change.", managed_proc.pid)
+                logger.error(
+                    "PID %d revalidated create_time mismatch! Refusing affinity change.",
+                    managed_proc.pid,
+                )
                 return False
 
             if hasattr(p, "cpu_affinity"):
@@ -46,7 +49,9 @@ class AffinityController:
 
     def restore_affinity(self, managed_proc: ManagedProcess) -> bool:
         """Restore process to its original captured CPU affinity."""
-        target = managed_proc.original_affinity if managed_proc.original_affinity else self.all_cores
+        target = (
+            managed_proc.original_affinity if managed_proc.original_affinity else self.all_cores
+        )
         return self.set_affinity(managed_proc, target)
 
     def emergency_reset(self, managed_procs: list[ManagedProcess]) -> int:

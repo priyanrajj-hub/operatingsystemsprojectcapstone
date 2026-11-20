@@ -64,6 +64,8 @@ class LiveWebSocketMessage(BaseModel):
 
     model_config = ConfigDict(frozen=True)
 
-    message_type: Literal["TELEMETRY", "DECISION", "HEARTBEAT", "SECURITY_ALERT", "EXPERIMENT_STATUS"]
+    message_type: Literal[
+        "TELEMETRY", "DECISION", "HEARTBEAT", "SECURITY_ALERT", "EXPERIMENT_STATUS"
+    ]
     timestamp: float = Field(default_factory=time.time)
     data: dict[str, Any] = Field(default_factory=dict)

@@ -4,7 +4,7 @@ from unittest.mock import patch
 
 from fastapi.testclient import TestClient
 
-from aidax.api import app, get_system_health, read_bandit_stats, read_csv_safe
+from aidax.api import app, get_system_health
 
 
 def test_api_root_redirect() -> None:

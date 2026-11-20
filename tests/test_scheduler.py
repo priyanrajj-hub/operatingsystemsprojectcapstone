@@ -86,7 +86,7 @@ def test_atomic_stats_and_csv_write(tmp_path: Path) -> None:
 
     # Test CSV write
     test_rows = [
-        "100.0,1,Heavy,P-core,\"[0, 1]\",heuristic,50.0,10.0,5.0,1.0,0.0,0.0,0.0,0.0,0.7,0.3\n"
+        '100.0,1,Heavy,P-core,"[0, 1]",heuristic,50.0,10.0,5.0,1.0,0.0,0.0,0.0,0.0,0.7,0.3\n'
     ]
     scheduler._write_csv_rows(test_rows)
     assert log_file.exists()

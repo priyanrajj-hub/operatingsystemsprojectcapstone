@@ -28,7 +28,9 @@ class RegretTracker:
         self.action_counts: dict[int, int] = dict.fromkeys(range(num_actions), 0)
         self.counterfactual_history: list[float] = []
 
-    def record_decision(self, chosen_action: int, observed_reward: float, counterfactual_rewards: dict[int, float]) -> None:
+    def record_decision(
+        self, chosen_action: int, observed_reward: float, counterfactual_rewards: dict[int, float]
+    ) -> None:
         """
         Record a decision cycle.
         counterfactual_rewards maps action -> reward that would have been obtained in hindsight.
