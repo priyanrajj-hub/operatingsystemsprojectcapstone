@@ -52,7 +52,7 @@ def test_linux_cpu_core_atom_sysfs_mock() -> None:
 def test_simulated_partition_labeling() -> None:
     """Verify that when hardware is non-hybrid, topology is flagged as simulated."""
     with patch("sys.platform", "linux"), patch("os.path.exists", return_value=False):
-        topo = detect_cpu_topology()
+        topo = detect_cpu_topology(force_refresh=True)
         assert topo.is_heterogeneous is False
         assert "simulated" in topo.detection_method.lower()
 

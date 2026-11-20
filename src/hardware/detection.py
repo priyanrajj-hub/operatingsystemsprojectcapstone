@@ -8,6 +8,7 @@ import logging
 import os
 import sys
 
+from hardware.darwin import detect_darwin_topology
 from hardware.linux import detect_linux_topology
 from hardware.topology import CoreType, CPUTopology, ProcessorCore
 from hardware.windows import detect_windows_topology
@@ -32,6 +33,8 @@ def get_cpu_topology(force_refresh: bool = False) -> CPUTopology:
         topology = detect_linux_topology()
     elif sys.platform == "win32":
         topology = detect_windows_topology()
+    elif sys.platform == "darwin":
+        topology = detect_darwin_topology()
 
     if topology is None:
         total = os.cpu_count() or 4

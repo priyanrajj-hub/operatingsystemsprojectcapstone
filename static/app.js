@@ -167,6 +167,9 @@
     const procCount = $('procCount'), procSplit = $('procSplit');
     const engineLabel = $('engineLabel'), engineDetail = $('engineDetail');
     const regretValue = $('regretValue'), regretDetail = $('regretDetail');
+    const uptimeValue = $('uptimeValue'), freqStats = $('freqStats');
+    const schedStatusValue = $('schedStatusValue'), lastUpdateValue = $('lastUpdateValue');
+    const topologyLabel = $('topologyLabel'), topologySub = $('topologySub');
     const coreHeatmap = $('coreHeatmap');
     const tableBody = $('tableBody');
     const statusLabel = $('statusLabel'), pulseRing = $('pulseRing');
@@ -262,8 +265,48 @@
         alphaVal.textContent = bandit.alpha_reward || 0.7;
         betaVal.textContent = bandit.beta_reward || 0.3;
 
+        // System Overview details
+        if (uptimeValue) {
+            const upt = sys.uptime_seconds;
+            if (upt !== undefined && upt !== null) {
+                const hrs = Math.floor(upt / 3600);
+                const mins = Math.floor((upt % 3600) / 60);
+                const secs = Math.floor(upt % 60);
+                uptimeValue.textContent = `Uptime: ${hrs}h ${mins}m ${secs}s`;
+            } else {
+                uptimeValue.textContent = 'Uptime: —';
+            }
+        }
+        if (freqStats) {
+            const cur = sys.cpu_freq_current ? `${(sys.cpu_freq_current / 1000).toFixed(2)} GHz` : '—';
+            const max = sys.cpu_freq_max ? `${(sys.cpu_freq_max / 1000).toFixed(2)} GHz` : '—';
+            freqStats.textContent = `Freq: ${cur} (Max: ${max})`;
+        }
+        if (schedStatusValue) {
+            const st = sys.scheduler_status || (procs.length > 0 ? 'Active' : 'Idle');
+            schedStatusValue.textContent = st.charAt(0).toUpperCase() + st.slice(1);
+            schedStatusValue.style.color = st === 'Active' || st === 'running' ? '#10b981' : '#a1a1aa';
+        }
+        if (lastUpdateValue) {
+            const ts = data.timestamp ? new Date(data.timestamp * 1000) : new Date();
+            lastUpdateValue.textContent = `Updated: ${ts.toLocaleTimeString()}`;
+        }
+
+        // Topology label & sub
+        if (topologyLabel && topologySub) {
+            if (sys.is_heterogeneous) {
+                topologyLabel.textContent = 'Hybrid Architecture';
+                topologyLabel.style.color = '#00c6ff';
+                topologySub.textContent = `P-Cores: [${(sys.p_cores || []).join(', ')}] · E-Cores: [${(sys.e_cores || []).join(', ')}]`;
+            } else {
+                topologyLabel.textContent = 'Heterogeneous topology unavailable';
+                topologyLabel.style.color = '#f59e0b';
+                topologySub.textContent = 'Non-hybrid or unverified CPU — using logical affinity partitioning';
+            }
+        }
+
         // Core heatmap
-        renderCores(sys.cpu_percent_per_core || []);
+        renderCores(sys.cpu_percent_per_core || [], sys.is_heterogeneous, sys.p_cores || [], sys.e_cores || []);
 
         // Table
         renderTable(procs);
@@ -273,16 +316,27 @@
         renderRegretChart(reg);
     }
 
-    function renderCores(perCore) {
+    function renderCores(perCore, isHeterogeneous, pCores, eCores) {
         if (!perCore.length) return;
+        const pSet = new Set(pCores || []);
+        const eSet = new Set(eCores || []);
 
-        // Only rebuild DOM if core count changed
+        function getCoreLabel(i) {
+            if (isHeterogeneous) {
+                if (pSet.has(i)) return `P${i}`;
+                if (eSet.has(i)) return `E${i}`;
+            }
+            return `C${i}`;
+        }
+
+        // Rebuild DOM if core count changed
         if (coreHeatmap.childElementCount !== perCore.length) {
             coreHeatmap.innerHTML = '';
             perCore.forEach((_, i) => {
                 const cell = document.createElement('div');
                 cell.className = 'core-cell';
-                cell.innerHTML = `<span class="core-cell__id">C${i}</span><span class="core-cell__pct">0%</span>`;
+                const label = getCoreLabel(i);
+                cell.innerHTML = `<span class="core-cell__id">${label}</span><span class="core-cell__pct">0%</span>`;
                 coreHeatmap.appendChild(cell);
             });
         }
@@ -294,7 +348,12 @@
             const col = heatColor(pct);
             cell.style.background = col.bg;
             cell.style.borderColor = col.bd;
-            cell.querySelector('.core-cell__pct').textContent = `${Math.round(pct)}%`;
+            const idSpan = cell.querySelector('.core-cell__id');
+            if (idSpan) {
+                idSpan.textContent = getCoreLabel(i);
+            }
+            const pctSpan = cell.querySelector('.core-cell__pct');
+            if (pctSpan) pctSpan.textContent = `${Math.round(pct)}%`;
         });
     }
 
@@ -314,7 +373,7 @@
         if (!procs || !procs.length) {
             const tr = document.createElement('tr');
             const td = document.createElement('td');
-            td.colSpan = 9;
+            td.colSpan = 12;
             td.className = 'table-empty';
             td.textContent = 'Waiting for scheduler data…';
             tr.appendChild(td);
@@ -329,18 +388,33 @@
             const isBand = String(p.decision_source || '') === 'bandit';
             const reward = parseFloat(p.reward || 0);
 
-            // PID
+            // 1. PID
             const tdPid = document.createElement('td');
             tdPid.textContent = String(p.pid ?? '—');
             tr.appendChild(tdPid);
 
-            // Type
+            // 2. Name
+            const tdName = document.createElement('td');
+            tdName.textContent = String(p.name || p.process_name || (p.true_type ? `${p.true_type}-Worker` : 'Worker'));
+            tdName.style.fontWeight = '600';
+            tr.appendChild(tdName);
+
+            // 3. Type
             const tdType = document.createElement('td');
             tdType.textContent = String(p.true_type ?? '—');
             tdType.style.color = isP ? '#00c6ff' : '#a18cd1';
             tr.appendChild(tdType);
 
-            // Routed
+            // 4. Status
+            const tdStatus = document.createElement('td');
+            const statusSpan = document.createElement('span');
+            const st = String(p.status || 'running').toLowerCase();
+            statusSpan.className = `chip chip--${st === 'running' ? 'p' : 'heur'}`;
+            statusSpan.textContent = st;
+            tdStatus.appendChild(statusSpan);
+            tr.appendChild(tdStatus);
+
+            // 5. Routed
             const tdRouted = document.createElement('td');
             const chipAction = document.createElement('span');
             chipAction.className = `chip chip--${isP ? 'p' : 'e'}`;
@@ -348,7 +422,7 @@
             tdRouted.appendChild(chipAction);
             tr.appendChild(tdRouted);
 
-            // Source
+            // 6. Source
             const tdSource = document.createElement('td');
             const chipSrc = document.createElement('span');
             chipSrc.className = `chip chip--${isBand ? 'band' : 'heur'}`;
@@ -356,27 +430,33 @@
             tdSource.appendChild(chipSrc);
             tr.appendChild(tdSource);
 
-            // CPU %
+            // 7. CPU %
             const tdCpu = document.createElement('td');
             tdCpu.textContent = `${parseFloat(p.cpu_percent || 0).toFixed(1)}%`;
             tr.appendChild(tdCpu);
 
-            // Vol Ctx
+            // 8. Memory %
+            const tdMem = document.createElement('td');
+            const memVal = p.memory_percent !== undefined ? parseFloat(p.memory_percent) : 0.0;
+            tdMem.textContent = `${memVal.toFixed(1)}%`;
+            tr.appendChild(tdMem);
+
+            // 9. Vol Ctx
             const tdVol = document.createElement('td');
             tdVol.textContent = parseFloat(p.vol_ctx_rate || 0).toFixed(0);
             tr.appendChild(tdVol);
 
-            // Invol Ctx
+            // 10. Invol Ctx
             const tdInvol = document.createElement('td');
             tdInvol.textContent = parseFloat(p.invol_ctx_rate || 0).toFixed(0);
             tr.appendChild(tdInvol);
 
-            // UCB
+            // 11. UCB
             const tdUcb = document.createElement('td');
             tdUcb.textContent = parseFloat(p.confidence_ucb || 0).toFixed(3);
             tr.appendChild(tdUcb);
 
-            // Reward
+            // 12. Reward
             const tdReward = document.createElement('td');
             tdReward.textContent = reward.toFixed(4);
             tdReward.style.color = reward >= 0 ? '#00f2fe' : '#f87171';
@@ -463,7 +543,7 @@
             demoMode = true;
             if (demoBanner) demoBanner.classList.add('visible');
             if (modeBadge) {
-                modeBadge.textContent = 'DEMO: SIMULATED DATA';
+                modeBadge.textContent = 'DEMO MODE — SIMULATED DATA';
                 modeBadge.className = 'badge-demo';
             }
             pulseRing.classList.remove('active');
@@ -516,10 +596,10 @@
             cumulativeRegret += currRegret;
 
             let mockProcesses = [
-                { pid: 1024, action: 'P', decision_source: 'bandit', cpu_percent: 80 + Math.random() * 15, vol_ctx_rate: 12, invol_ctx_rate: 15, confidence_ucb: 1.4, reward: -0.15, true_type: 'Heavy', assigned_cores: `[${pCoresArr.join(', ')}]` },
-                { pid: 2048, action: 'P', decision_source: 'bandit', cpu_percent: 85 + Math.random() * 10, vol_ctx_rate: 8, invol_ctx_rate: 10, confidence_ucb: 1.5, reward: -0.10, true_type: 'Heavy', assigned_cores: `[${pCoresArr.join(', ')}]` },
-                { pid: 3012, action: 'E', decision_source: 'bandit', cpu_percent: 3 + Math.random() * 5, vol_ctx_rate: 450, invol_ctx_rate: 1, confidence_ucb: 0.3, reward: -0.01, true_type: 'Light', assigned_cores: `[${eCoresArr.join(', ')}]` },
-                { pid: 4056, action: 'E', decision_source: 'bandit', cpu_percent: 4 + Math.random() * 4, vol_ctx_rate: 610, invol_ctx_rate: 2, confidence_ucb: 0.4, reward: -0.02, true_type: 'Light', assigned_cores: `[${eCoresArr.join(', ')}]` }
+                { pid: 1024, name: 'Heavy-Prime-1', action: 'P', decision_source: 'bandit', status: 'running', memory_percent: 1.2, cpu_percent: 80 + Math.random() * 15, vol_ctx_rate: 12, invol_ctx_rate: 15, confidence_ucb: 1.4, reward: -0.15, true_type: 'Heavy', assigned_cores: `[${pCoresArr.join(', ')}]` },
+                { pid: 2048, name: 'Heavy-Prime-2', action: 'P', decision_source: 'bandit', status: 'running', memory_percent: 1.1, cpu_percent: 85 + Math.random() * 10, vol_ctx_rate: 8, invol_ctx_rate: 10, confidence_ucb: 1.5, reward: -0.10, true_type: 'Heavy', assigned_cores: `[${pCoresArr.join(', ')}]` },
+                { pid: 3012, name: 'Light-IO-1', action: 'E', decision_source: 'bandit', status: 'running', memory_percent: 0.8, cpu_percent: 3 + Math.random() * 5, vol_ctx_rate: 450, invol_ctx_rate: 1, confidence_ucb: 0.3, reward: -0.01, true_type: 'Light', assigned_cores: `[${eCoresArr.join(', ')}]` },
+                { pid: 4056, name: 'Light-IO-2', action: 'E', decision_source: 'bandit', status: 'running', memory_percent: 0.9, cpu_percent: 4 + Math.random() * 4, vol_ctx_rate: 610, invol_ctx_rate: 2, confidence_ucb: 0.4, reward: -0.02, true_type: 'Light', assigned_cores: `[${eCoresArr.join(', ')}]` }
             ];
 
             const fakeData = {

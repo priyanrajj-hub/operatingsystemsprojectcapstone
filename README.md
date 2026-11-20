@@ -4,7 +4,7 @@
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 [![Code style: ruff](https://img.shields.io/badge/code%20style-ruff-000000.svg)](https://github.com/astral-sh/ruff)
 [![Type Checked: mypy](https://img.shields.io/badge/type%20checked-mypy-blue.svg)](https://mypy-lang.org/)
-[![Tests: pytest](https://img.shields.io/badge/tests-75%20passed-brightgreen.svg)](tests/)
+[![Tests: pytest](https://img.shields.io/badge/tests-79%20passed-brightgreen.svg)](tests/)
 
 **AI-DAX Lite** (*Adaptive Intelligence for Dynamic Allocation & Execution*) is a research-grade CPU scheduling simulator and runtime experimentation harness. It optimizes process placement on heterogeneous CPU architectures (Performance Cores vs. Efficient Cores) by replacing static heuristic classification with an online **LinUCB contextual bandit**.
 
@@ -207,23 +207,36 @@ operatingsystemsprojectcapstone/
 │   ├── index.html            # Dashboard structure with accessible ARIA tags
 │   ├── style.css             # Glassmorphic styling & explicit demo mode banners
 │   └── app.js                # WebSocket client, safe DOM rendering, charts
-├── tests/                    # 75 unit and integration tests
-└── docs/                     # Documentation and audit reports
+├── tests/                    # 79 unit and integration tests
+└── docs/                     # Comprehensive documentation & research specs
+    ├── ARCHITECTURE.md       # High-level architecture and Mermaid dataflow diagrams
+    ├── API.md                # Complete REST & WebSocket API specification
+    ├── SECURITY.md           # Security architecture, authentication, and threat model
+    ├── INSTALLATION.md       # Multi-platform installation & setup guide
+    ├── BENCHMARKING.md       # Empirical evaluation protocol and baseline guides
+    ├── RESEARCH_METHODOLOGY.md # Mathematical formulation & LinUCB analysis
+    ├── KNOWN_LIMITATIONS.md  # Disclosures on user-space scheduling and proxies
+    ├── TECHNICAL_AUDIT.md    # Audit findings, defect matrix, and data flow tracing
+    ├── DEVELOPMENT.md        # Developer setup, coding standards, and pre-commit hooks
     ├── CODE_REVIEW.md        # Complete before/after audit & review verdicts
     ├── CONTRIBUTING.md       # Contribution guidelines and coding standards
-    ├── TROUBLESHOOTING.md    # Platform troubleshooting & affinity recovery
-    └── engineering/
-        └── INITIAL_AUDIT.md  # Comprehensive initial audit of S1-S14
+    └── TROUBLESHOOTING.md    # Platform troubleshooting & affinity recovery
 ```
 
 ---
 
 ## Documentation Links
 
+- [System Architecture](docs/ARCHITECTURE.md) — High-level components and dataflow diagrams.
+- [API Reference](docs/API.md) — Complete specification for all 12+ REST endpoints and WebSockets.
+- [Security Architecture](docs/SECURITY.md) — Authentication, token validation, and threat model.
+- [Installation Guide](docs/INSTALLATION.md) — Step-by-step setup for Windows, Linux, macOS, and Docker.
+- [Benchmarking Protocol](docs/BENCHMARKING.md) — Experimental evaluation harness and statistical testing.
+- [Research Methodology](docs/RESEARCH_METHODOLOGY.md) — Contextual bandit formulation and Sherman-Morrison updates.
+- [Known Limitations](docs/KNOWN_LIMITATIONS.md) — Technical disclosures, boundaries, and proxy notes.
+- [Technical Audit](docs/TECHNICAL_AUDIT.md) — Complete repository audit and data flow trace.
 - [Troubleshooting Guide](docs/TROUBLESHOOTING.md) — Common runtime issues and platform solutions.
-- [Contributing Guidelines](docs/CONTRIBUTING.md) — Coding standards, git workflow, and review criteria.
-- [Code Review Report](docs/CODE_REVIEW.md) — Detailed technical audit, S1–S14 verdicts, and performance metrics.
-- [Initial Audit Matrix](docs/engineering/INITIAL_AUDIT.md) — Initial analysis and bug reproduction notes.
+- [Developer Guide](docs/DEVELOPMENT.md) — Contributor workflows and code quality standards.
 
 ---
 

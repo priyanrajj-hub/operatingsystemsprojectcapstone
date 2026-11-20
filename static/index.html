@@ -17,7 +17,7 @@
 
 <body>
     <div id="demoBanner" class="demo-banner" role="alert" aria-live="polite">
-        <span class="badge">DEMO: SIMULATED DATA</span> Live backend scheduler offline. Displaying client-side simulated telemetry.
+        <span class="badge">DEMO MODE — SIMULATED DATA</span> Live backend scheduler offline. Displaying client-side simulated telemetry.
     </div>
     <div class="ambient-glow glow-1"></div>
     <div class="ambient-glow glow-2"></div>
@@ -139,13 +139,26 @@
                     <div class="info-tile__value" id="regretValue">0.00</div>
                     <div class="info-tile__sub" id="regretDetail">cumulative</div>
                 </div>
+                <div class="info-tile glass-panel">
+                    <div class="info-tile__header">
+                        <div class="info-tile__dot" style="background:#10b981; box-shadow: 0 0 10px #10b981;"></div>
+                        System & Scheduler
+                    </div>
+                    <div class="info-tile__value" id="schedStatusValue" style="font-size:1.1rem;">Idle</div>
+                    <div class="info-tile__sub" id="uptimeValue">Uptime: —</div>
+                    <div class="info-tile__sub" id="freqStats">Freq: —</div>
+                    <div class="info-tile__sub" id="lastUpdateValue" style="font-size:0.7rem; opacity:0.7;">Updated: —</div>
+                </div>
             </div>
         </section>
 
         <section class="section glass-panel">
-            <div class="section-head">
-                <h2>Core Topology</h2>
-                <p>Real-time per-core utilisation heatmap</p>
+            <div class="section-head" style="display:flex; justify-content:space-between; align-items:flex-start;">
+                <div>
+                    <h2>Core Topology</h2>
+                    <p id="topologySub">Real-time per-core utilisation heatmap</p>
+                </div>
+                <span id="topologyLabel" class="glass-badge" style="font-size:0.8rem; padding: 0.3rem 0.6rem;">Detecting...</span>
             </div>
             <div class="core-heatmap" id="coreHeatmap"></div>
         </section>
@@ -249,10 +262,13 @@
                     <thead>
                         <tr>
                             <th>PID</th>
+                            <th>Name</th>
                             <th>Type</th>
+                            <th>Status</th>
                             <th>Routed</th>
                             <th>Source</th>
                             <th>CPU</th>
+                            <th>Mem %</th>
                             <th>Vol Ctx/s</th>
                             <th>Invol Ctx/s</th>
                             <th>UCB</th>
@@ -261,7 +277,7 @@
                     </thead>
                     <tbody id="tableBody">
                         <tr>
-                            <td colspan="9" class="table-empty">Waiting for telemetry…</td>
+                            <td colspan="12" class="table-empty">Waiting for telemetry…</td>
                         </tr>
                     </tbody>
                 </table>

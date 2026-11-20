@@ -30,7 +30,7 @@ from pathlib import Path
 from typing import Any
 
 import psutil
-from fastapi import FastAPI, Request, WebSocket, WebSocketDisconnect
+from fastapi import FastAPI, Header, HTTPException, Request, WebSocket, WebSocketDisconnect
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse, RedirectResponse
 from fastapi.staticfiles import StaticFiles
@@ -139,22 +139,38 @@ def reset_all_affinities() -> int:
 
 
 def get_system_health() -> dict[str, Any]:
-    """Gather host CPU and memory health metrics."""
+    """Gather host CPU, memory, and hardware topology health metrics."""
     cpu_percent_per_core = psutil.cpu_percent(percpu=True)
     cpu_freq = psutil.cpu_freq()
     mem = psutil.virtual_memory()
+    uptime_s = time.time() - psutil.boot_time()
+
+    from hardware.detection import get_cpu_topology
+
+    topo = get_cpu_topology()
 
     return {
         "cpu_percent_overall": psutil.cpu_percent(),
         "cpu_percent_per_core": cpu_percent_per_core,
         "cpu_count_logical": psutil.cpu_count(logical=True),
         "cpu_count_physical": psutil.cpu_count(logical=False),
-        "cpu_freq_current": cpu_freq.current if cpu_freq else 0,
-        "cpu_freq_max": cpu_freq.max if cpu_freq else 0,
-        "cpu_freq_min": cpu_freq.min if cpu_freq else 0,
+        "cpu_freq_current": round(cpu_freq.current, 1) if cpu_freq else 0,
+        "cpu_freq_max": round(cpu_freq.max, 1) if (cpu_freq and cpu_freq.max) else None,
+        "cpu_freq_min": round(cpu_freq.min, 1) if (cpu_freq and cpu_freq.min) else None,
+        "system_uptime_seconds": round(uptime_s, 1),
         "memory_total_gb": round(mem.total / (1024**3), 2),
         "memory_used_gb": round(mem.used / (1024**3), 2),
         "memory_percent": mem.percent,
+        "is_heterogeneous": topo.is_heterogeneous,
+        "is_simulated": not topo.is_heterogeneous,
+        "p_cores": topo.p_cores,
+        "e_cores": topo.e_cores,
+        "topology_status": (
+            "Verified Heterogeneous Hybrid"
+            if topo.is_heterogeneous
+            else "Heterogeneous topology unavailable"
+        ),
+        "timestamp": time.time(),
     }
 
 
@@ -212,7 +228,7 @@ def api_system() -> JSONResponse:
 
 @app.get("/api/processes")
 def api_processes() -> JSONResponse:
-    """Return list of active processes tracked in pids.txt."""
+    """Return list of active processes tracked in pids.txt with full metrics."""
     procs: list[dict[str, Any]] = []
     if os.path.exists(PID_FILE):
         try:
@@ -225,14 +241,41 @@ def api_processes() -> JSONResponse:
                         pid = item.get("pid")
                         if pid and psutil.pid_exists(pid):
                             p = psutil.Process(pid)
+                            item["name"] = p.name()
                             item["cpu_percent"] = p.cpu_percent(interval=0.0)
+                            item["memory_percent"] = round(p.memory_percent(), 2)
                             item["status"] = p.status()
+                            try:
+                                item["current_affinity"] = list(p.cpu_affinity())
+                            except (AttributeError, psutil.AccessDenied):
+                                item["current_affinity"] = []
                             procs.append(item)
                     except Exception:
                         pass
         except Exception as e:
             logger.debug("Error reading PID file: %s", e)
     return JSONResponse({"processes": procs, "count": len(procs)})
+
+
+@app.get("/api/hardware")
+def api_hardware() -> JSONResponse:
+    """Return verified CPU hardware topology."""
+    from hardware.detection import get_cpu_topology
+
+    topo = get_cpu_topology()
+    return JSONResponse(topo.to_dict())
+
+
+@app.get("/api/telemetry")
+def api_telemetry() -> JSONResponse:
+    """Return consolidated telemetry snapshot (system health + bandit stats)."""
+    return JSONResponse(
+        {
+            "system": get_system_health(),
+            "bandit": read_bandit_stats(),
+            "timestamp": time.time(),
+        }
+    )
 
 
 @app.get("/api/scheduler/status")
@@ -256,6 +299,94 @@ def api_scheduler_status() -> JSONResponse:
     )
 
 
+@app.post("/api/scheduler/start")
+def api_scheduler_start(
+    x_api_token: str | None = Header(default=None, alias="X-API-Token"),
+) -> JSONResponse:
+    """Signal scheduler startup / active mode."""
+    expected_token = os.getenv("AIDAX_API_TOKEN", "")
+    if expected_token:
+        from security.validation import verify_api_token
+
+        if not verify_api_token(x_api_token, expected_token):
+            raise HTTPException(
+                status_code=401, detail="Unauthorized: invalid or missing API token"
+            )
+
+    return JSONResponse({"status": "running", "message": "Scheduler signal active"})
+
+
+@app.post("/api/scheduler/stop")
+def api_scheduler_stop(
+    x_api_token: str | None = Header(default=None, alias="X-API-Token"),
+) -> JSONResponse:
+    """Signal scheduler stop."""
+    expected_token = os.getenv("AIDAX_API_TOKEN", "")
+    if expected_token:
+        from security.validation import verify_api_token
+
+        if not verify_api_token(x_api_token, expected_token):
+            raise HTTPException(
+                status_code=401, detail="Unauthorized: invalid or missing API token"
+            )
+
+    return JSONResponse({"status": "idle", "message": "Scheduler signal stopped"})
+
+
+class AffinityUpdateRequest(BaseModel):
+    cores: list[int] = Field(description="Target logical core indices")
+
+
+@app.post("/api/process/{pid}/affinity")
+def api_set_process_affinity(
+    pid: int,
+    payload: AffinityUpdateRequest,
+    x_api_token: str | None = Header(default=None, alias="X-API-Token"),
+) -> JSONResponse:
+    """Safely update affinity of a managed process with PID validation."""
+    expected_token = os.getenv("AIDAX_API_TOKEN", "")
+    if expected_token:
+        from security.validation import verify_api_token
+
+        if not verify_api_token(x_api_token, expected_token):
+            raise HTTPException(
+                status_code=401, detail="Unauthorized: invalid or missing API token"
+            )
+
+    if not psutil.pid_exists(pid):
+        raise HTTPException(status_code=404, detail=f"Process {pid} does not exist")
+
+    is_tracked = False
+    if os.path.exists(PID_FILE):
+        try:
+            with open(PID_FILE, encoding="utf-8") as f:
+                for line in f:
+                    if line.strip():
+                        item = json.loads(line)
+                        if item.get("pid") == pid:
+                            is_tracked = True
+                            break
+        except Exception:
+            pass
+
+    if not is_tracked:
+        raise HTTPException(
+            status_code=403, detail=f"Process {pid} is not a managed AI-DAX workload task"
+        )
+
+    from process.affinity import set_process_affinity
+
+    p = psutil.Process(pid)
+    success = set_process_affinity(p, payload.cores)
+    if not success:
+        raise HTTPException(
+            status_code=500,
+            detail="Failed to set CPU affinity (platform or permission constraint)",
+        )
+
+    return JSONResponse({"status": "success", "pid": pid, "affinity": payload.cores})
+
+
 @app.get("/api/scheduler/stats")
 def api_scheduler_stats() -> JSONResponse:
     """Alias for /api/bandit-stats."""
@@ -270,8 +401,19 @@ def api_history(limit: int = 100) -> JSONResponse:
 
 
 @app.post("/api/reset")
-def api_reset() -> JSONResponse:
+def api_reset(
+    x_api_token: str | None = Header(default=None, alias="X-API-Token"),
+) -> JSONResponse:
     """Emergency endpoint: releases affinities across all tracked processes."""
+    expected_token = os.getenv("AIDAX_API_TOKEN", "")
+    if expected_token:
+        from security.validation import verify_api_token
+
+        if not verify_api_token(x_api_token, expected_token):
+            raise HTTPException(
+                status_code=401, detail="Unauthorized: invalid or missing API token"
+            )
+
     released = reset_all_affinities()
     return JSONResponse(
         {
