@@ -1,5 +1,5 @@
 """
-Multi-condition experiment harness supporting all 7 baseline and bandit scheduling policies.
+Multi-condition experiment harness supporting baseline, heuristic, and bandit scheduling policies.
 """
 
 from __future__ import annotations
@@ -14,7 +14,7 @@ import numpy as np
 from hardware.topology import CPUTopology
 from process.supervisor import ProcessSupervisor
 from scheduler.linucb import StableLinUCBBandit
-from scheduler.reward import RewardCalculator
+from scheduler.reward import RewardCalculator, RewardMode
 from scheduler.thompson_sampling import LinTSBandit
 from telemetry.collector import TelemetryCollector
 
@@ -28,6 +28,7 @@ class TrialResult:
     condition: str
     trial_index: int
     duration_seconds: float
+    seed: int
     total_decisions: int = 0
     average_cpu_percent: float = 0.0
     average_power_watts: float = 0.0
@@ -38,7 +39,7 @@ class TrialResult:
 
 
 class ExperimentRunner:
-    """Orchestrates comparative scheduling experiments across all 7 supported policies."""
+    """Orchestrates comparative scheduling experiments across all supported policies."""
 
     SUPPORTED_CONDITIONS = (
         "cfs",
@@ -46,14 +47,17 @@ class ExperimentRunner:
         "static_e",
         "round_robin",
         "heuristic",
+        "random",
+        "epsilon_greedy",
         "linucb",
         "thompson_sampling",
+        "oracle_static",
     )
 
-    def __init__(self, topology: CPUTopology) -> None:
+    def __init__(self, topology: CPUTopology, reward_mode: RewardMode = RewardMode.PERF) -> None:
         self.topology = topology
         self.collector = TelemetryCollector(topology=topology)
-        self.reward_calculator = RewardCalculator()
+        self.reward_calculator = RewardCalculator(reward_mode=reward_mode)
 
     def run_condition_trial(
         self,
@@ -61,29 +65,35 @@ class ExperimentRunner:
         trial_index: int = 0,
         duration_seconds: float = 10.0,
         cycle_interval_seconds: float = 0.5,
+        seed: int = 42,
     ) -> TrialResult:
-        """Execute a single trial under the specified scheduling condition."""
+        """Execute a single trial under the specified scheduling condition with fixed seed."""
         if condition not in self.SUPPORTED_CONDITIONS:
             raise ValueError(
                 f"Unknown condition '{condition}'. Supported: {self.SUPPORTED_CONDITIONS}"
             )
 
+        rng = np.random.default_rng(seed + trial_index)
         supervisor = ProcessSupervisor()
-        bandit = StableLinUCBBandit(context_dim=4, exploration_alpha=1.0)
-        ts_bandit = LinTSBandit(context_dim=4, v=0.5)
+        bandit = StableLinUCBBandit(context_dim=4, exploration_alpha=1.0, num_arms=3, seed=seed)
+        ts_bandit = LinTSBandit(context_dim=4, num_arms=3, v=0.5, seed=seed)
 
         start_time = time.time()
         decisions: list[dict[str, Any]] = []
         cpu_samples: list[float] = []
         power_samples: list[float] = []
         fairness_samples: list[float] = []
-        rr_toggle = 0
+        rr_step = 0
+        eps_running_rewards: dict[int, list[float]] = {0: [], 1: [], 2: []}
+
+        all_cores = self.topology.p_cores + self.topology.e_cores
 
         logger.info(
-            "Starting trial %d for condition '%s' (duration=%.1fs)",
+            "Starting trial %d for condition '%s' (duration=%.1fs, seed=%d)",
             trial_index,
             condition,
             duration_seconds,
+            seed,
         )
 
         try:
@@ -112,52 +122,69 @@ class ExperimentRunner:
                     )
 
                     # Determine action based on condition
-                    target_cores: list[int] = []
-                    action = 0
-
+                    # 0: E-core, 1: P-core, 2: Unpinned (all cores)
+                    action = 2
                     if condition == "cfs":
-                        # Native OS CFS: unconstrained full affinity
-                        target_cores = self.topology.p_cores + self.topology.e_cores
-                        action = 1
+                        action = 2
                     elif condition == "static_p":
-                        target_cores = self.topology.p_cores
                         action = 1
                     elif condition == "static_e":
-                        target_cores = self.topology.e_cores
                         action = 0
                     elif condition == "round_robin":
-                        rr_toggle = 1 - rr_toggle
-                        target_cores = (
-                            self.topology.p_cores if rr_toggle == 1 else self.topology.e_cores
-                        )
-                        action = rr_toggle
+                        action = rr_step % 3
+                        rr_step += 1
                     elif condition == "heuristic":
-                        # Rule-based: heavy CPU (> 40%) gets P-cores
-                        if proc_stat.cpu_percent > 40.0:
-                            target_cores = self.topology.p_cores
+                        if proc_stat.cpu_percent > 50.0:
                             action = 1
-                        else:
-                            target_cores = self.topology.e_cores
+                        elif proc_stat.cpu_percent < 20.0:
                             action = 0
+                        else:
+                            action = 2
+                    elif condition == "random":
+                        action = int(rng.integers(0, 3))
+                    elif condition == "epsilon_greedy":
+                        if rng.random() < 0.1:
+                            action = int(rng.integers(0, 3))
+                        else:
+                            means = [
+                                float(np.mean(eps_running_rewards[a]))
+                                if eps_running_rewards[a]
+                                else 0.0
+                                for a in range(3)
+                            ]
+                            action = int(np.argmax(means))
                     elif condition == "linucb":
-                        action, score = bandit.select_action(context)
-                        target_cores = (
-                            self.topology.p_cores if action == 1 else self.topology.e_cores
-                        )
+                        action, _ = bandit.select_action(context)
                     elif condition == "thompson_sampling":
-                        action, score = ts_bandit.select_action(context)
-                        target_cores = (
-                            self.topology.p_cores if action == 1 else self.topology.e_cores
-                        )
+                        action, _ = ts_bandit.select_action(context)
+                    elif condition == "oracle_static":
+                        # Offline best static assignment per workload (hindsight oracle reference)
+                        if "CPU" in managed.workload_type:
+                            action = 1
+                        elif "MEM" in managed.workload_type:
+                            action = 0
+                        else:
+                            action = 2
+
+                    # Map action to core set
+                    if action == 1:
+                        target_cores = self.topology.p_cores
+                    elif action == 0:
+                        target_cores = self.topology.e_cores
+                    else:
+                        target_cores = all_cores
 
                     supervisor.affinity_controller.set_affinity(managed, target_cores)
 
                     # Online feedback calculation
                     reward_comps = self.reward_calculator.compute(
                         action=action,
+                        progress_work_units=proc_stat.cpu_percent * 2.0,
+                        window_duration_seconds=cycle_interval_seconds,
                         invol_ctx_rate=proc_stat.cpu_percent * 5.0,
                     )
                     reward = reward_comps.total_reward
+                    eps_running_rewards[action].append(reward)
 
                     if condition == "linucb":
                         bandit.update(action, context, reward)
@@ -189,6 +216,7 @@ class ExperimentRunner:
             condition=condition,
             trial_index=trial_index,
             duration_seconds=elapsed,
+            seed=seed,
             total_decisions=len(decisions),
             average_cpu_percent=round(avg_cpu, 2),
             average_power_watts=round(avg_power, 2),
