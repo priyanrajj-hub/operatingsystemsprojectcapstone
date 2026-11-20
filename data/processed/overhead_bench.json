@@ -1,0 +1,42 @@
+{
+  "N_2": {
+    "n_processes": 2,
+    "mean_decision_latency_us": 82.95,
+    "p95_decision_latency_us": 96.2,
+    "p99_decision_latency_us": 188.06,
+    "rss_memory_mb": 0.38,
+    "total_decisions_benchmarked": 2000
+  },
+  "N_4": {
+    "n_processes": 4,
+    "mean_decision_latency_us": 81.12,
+    "p95_decision_latency_us": 91.2,
+    "p99_decision_latency_us": 129.91,
+    "rss_memory_mb": 0.58,
+    "total_decisions_benchmarked": 4000
+  },
+  "N_8": {
+    "n_processes": 8,
+    "mean_decision_latency_us": 83.34,
+    "p95_decision_latency_us": 97.41,
+    "p99_decision_latency_us": 176.1,
+    "rss_memory_mb": 0.75,
+    "total_decisions_benchmarked": 8000
+  },
+  "N_16": {
+    "n_processes": 16,
+    "mean_decision_latency_us": 81.81,
+    "p95_decision_latency_us": 96.0,
+    "p99_decision_latency_us": 192.4,
+    "rss_memory_mb": 1.23,
+    "total_decisions_benchmarked": 16000
+  },
+  "N_32": {
+    "n_processes": 32,
+    "mean_decision_latency_us": 82.11,
+    "p95_decision_latency_us": 96.0,
+    "p99_decision_latency_us": 180.9,
+    "rss_memory_mb": 1.98,
+    "total_decisions_benchmarked": 32000
+  }
+}

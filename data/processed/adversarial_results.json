@@ -1,0 +1,16 @@
+{
+  "n_steps": 200,
+  "clean_baseline": {
+    "optimal_p_core_allocation_ratio": 0.47
+  },
+  "attacked_without_defense": {
+    "optimal_p_core_allocation_ratio": 0.475,
+    "allocation_degradation_pct": -1.06
+  },
+  "attacked_with_defense": {
+    "optimal_p_core_allocation_ratio": 0.47,
+    "recovery_pct": 100.0,
+    "anomalies_detected": 200,
+    "updates_throttled": 0
+  }
+}
