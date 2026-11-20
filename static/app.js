@@ -170,6 +170,8 @@
     const coreHeatmap = $('coreHeatmap');
     const tableBody = $('tableBody');
     const statusLabel = $('statusLabel'), pulseRing = $('pulseRing');
+    const demoBanner = $('demoBanner');
+    const modeBadge = $('modeBadge');
     const clockEl = $('clock');
     const heurPctLabel = $('heurPctLabel'), bandPctLabel = $('bandPctLabel');
     const heurBar = $('heurBar'), bandBar = $('bandBar');
@@ -308,27 +310,82 @@
     }
 
     function renderTable(procs) {
+        tableBody.replaceChildren();
         if (!procs || !procs.length) {
-            tableBody.innerHTML = '<tr><td colspan="9" class="table-empty">Waiting for scheduler data…</td></tr>';
+            const tr = document.createElement('tr');
+            const td = document.createElement('td');
+            td.colSpan = 9;
+            td.className = 'table-empty';
+            td.textContent = 'Waiting for scheduler data…';
+            tr.appendChild(td);
+            tableBody.appendChild(tr);
             return;
         }
-        tableBody.innerHTML = procs.map(p => {
-            const isP = (p.action || '').includes('P');
-            const isBand = (p.decision_source || '') === 'bandit';
+
+        const fragment = document.createDocumentFragment();
+        procs.forEach(p => {
+            const tr = document.createElement('tr');
+            const isP = String(p.action || '').includes('P');
+            const isBand = String(p.decision_source || '') === 'bandit';
             const reward = parseFloat(p.reward || 0);
-            const rwdColor = reward >= 0 ? '#00f2fe' : '#f87171';
-            return `<tr>
-                <td>${escapeHTML(p.pid || '—')}</td>
-                <td style="color:${isP ? '#00c6ff' : '#a18cd1'}">${escapeHTML(p.true_type || '—')}</td>
-                <td><span class="chip chip--${isP ? 'p' : 'e'}">${escapeHTML(p.action || '—')}</span></td>
-                <td><span class="chip chip--${isBand ? 'band' : 'heur'}">${escapeHTML(p.decision_source || '—')}</span></td>
-                <td>${parseFloat(p.cpu_percent || 0).toFixed(1)}%</td>
-                <td>${parseFloat(p.vol_ctx_rate || 0).toFixed(0)}</td>
-                <td>${parseFloat(p.invol_ctx_rate || 0).toFixed(0)}</td>
-                <td>${parseFloat(p.confidence_ucb || 0).toFixed(3)}</td>
-                <td style="color:${rwdColor};font-weight:700">${reward.toFixed(4)}</td>
-            </tr>`;
-        }).join('');
+
+            // PID
+            const tdPid = document.createElement('td');
+            tdPid.textContent = String(p.pid ?? '—');
+            tr.appendChild(tdPid);
+
+            // Type
+            const tdType = document.createElement('td');
+            tdType.textContent = String(p.true_type ?? '—');
+            tdType.style.color = isP ? '#00c6ff' : '#a18cd1';
+            tr.appendChild(tdType);
+
+            // Routed
+            const tdRouted = document.createElement('td');
+            const chipAction = document.createElement('span');
+            chipAction.className = `chip chip--${isP ? 'p' : 'e'}`;
+            chipAction.textContent = String(p.action ?? '—');
+            tdRouted.appendChild(chipAction);
+            tr.appendChild(tdRouted);
+
+            // Source
+            const tdSource = document.createElement('td');
+            const chipSrc = document.createElement('span');
+            chipSrc.className = `chip chip--${isBand ? 'band' : 'heur'}`;
+            chipSrc.textContent = String(p.decision_source ?? '—');
+            tdSource.appendChild(chipSrc);
+            tr.appendChild(tdSource);
+
+            // CPU %
+            const tdCpu = document.createElement('td');
+            tdCpu.textContent = `${parseFloat(p.cpu_percent || 0).toFixed(1)}%`;
+            tr.appendChild(tdCpu);
+
+            // Vol Ctx
+            const tdVol = document.createElement('td');
+            tdVol.textContent = parseFloat(p.vol_ctx_rate || 0).toFixed(0);
+            tr.appendChild(tdVol);
+
+            // Invol Ctx
+            const tdInvol = document.createElement('td');
+            tdInvol.textContent = parseFloat(p.invol_ctx_rate || 0).toFixed(0);
+            tr.appendChild(tdInvol);
+
+            // UCB
+            const tdUcb = document.createElement('td');
+            tdUcb.textContent = parseFloat(p.confidence_ucb || 0).toFixed(3);
+            tr.appendChild(tdUcb);
+
+            // Reward
+            const tdReward = document.createElement('td');
+            tdReward.textContent = reward.toFixed(4);
+            tdReward.style.color = reward >= 0 ? '#00f2fe' : '#f87171';
+            tdReward.style.fontWeight = '700';
+            tr.appendChild(tdReward);
+
+            fragment.appendChild(tr);
+        });
+        tableBody.appendChild(fragment);
     }
 
     function renderLoadChart(hist) {
@@ -338,10 +395,7 @@
             const ts = r.timestamp;
             if (!byTs[ts]) byTs[ts] = { p: [], e: [] };
             const isP = (r.action || '').includes('P');
-            let cpu = parseFloat(r.cpu_percent || 0);
-            if (cpu === 0) {
-                cpu = isP ? 70 + Math.random() * 15 : 5 + Math.random() * 10;
-            }
+            const cpu = parseFloat(r.cpu_percent || 0);
             isP ? byTs[ts].p.push(cpu) : byTs[ts].e.push(cpu);
         });
         const keys = Object.keys(byTs).sort().slice(-MAX_CHART);
@@ -387,23 +441,41 @@
     // ─────────────────────────────────────────────
     let ws = null;
     let reconnectTimer = null;
+    let reconnectDelay = 1000;
+    const MAX_RECONNECT_DELAY = 15000;
     let demoMode = false;
     let demoInterval = null;
 
     function setConnected(connected, isDemo = false) {
         if (connected && !isDemo) {
+            demoMode = false;
+            if (demoBanner) demoBanner.classList.remove('visible');
+            if (modeBadge) {
+                modeBadge.textContent = 'LIVE TELEMETRY';
+                modeBadge.className = 'badge-live';
+            }
             pulseRing.classList.add('active');
             pulseRing.style.background = '#00f2fe';
             pulseRing.style.boxShadow = '0 0 10px #00f2fe';
             statusLabel.textContent = 'Live';
             statusLabel.style.color = '#fff';
         } else if (isDemo) {
-            pulseRing.classList.add('active');
-            pulseRing.style.background = '#10b981'; // Green for Client-Side AI
-            pulseRing.style.boxShadow = '0 0 10px rgba(16, 185, 129, 0.6)';
-            statusLabel.textContent = 'Client-Side AI Engine';
-            statusLabel.style.color = '#10b981';
+            demoMode = true;
+            if (demoBanner) demoBanner.classList.add('visible');
+            if (modeBadge) {
+                modeBadge.textContent = 'DEMO: SIMULATED DATA';
+                modeBadge.className = 'badge-demo';
+            }
+            pulseRing.classList.remove('active');
+            pulseRing.style.background = '#f59e0b';
+            pulseRing.style.boxShadow = '0 0 10px rgba(245, 158, 11, 0.6)';
+            statusLabel.textContent = 'Simulated Demo';
+            statusLabel.style.color = '#f59e0b';
         } else {
+            if (modeBadge) {
+                modeBadge.textContent = 'RECONNECTING...';
+                modeBadge.className = 'badge-reconnecting';
+            }
             pulseRing.classList.remove('active');
             pulseRing.style.background = 'var(--text-muted)';
             pulseRing.style.boxShadow = 'none';
@@ -428,7 +500,7 @@
         let pCoresArr = Array.from({ length: physicalCores }, (_, i) => i);
         let eCoresArr = Array.from({ length: logicalCores - physicalCores }, (_, i) => i + physicalCores);
 
-        console.log(`AI-DAX Lite: Connected directly to hardware specs -> ${logicalCores} Cores, ${ramGB}GB RAM`);
+        console.warn(`AI-DAX Lite: Running in SIMULATED DEMO mode (backend unavailable). Client specs: ${logicalCores} Cores, ${ramGB}GB RAM`);
 
         if (demoInterval) clearInterval(demoInterval);
         demoInterval = setInterval(() => {
@@ -487,40 +559,73 @@
         }, 1500);
     }
 
+    function scheduleReconnect() {
+        if (reconnectTimer) return;
+        reconnectTimer = setTimeout(() => {
+            reconnectTimer = null;
+            reconnectDelay = Math.min(reconnectDelay * 1.5, MAX_RECONNECT_DELAY);
+            connectWS();
+        }, reconnectDelay);
+    }
+
     function connectWS() {
         const proto = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
         const host = window.location.host || '127.0.0.1:8000';
         const wsUrl = `${proto}//${host}/ws/live`;
-        ws = new WebSocket(wsUrl);
+        try {
+            ws = new WebSocket(wsUrl);
+        } catch {
+            scheduleReconnect();
+            return;
+        }
 
         ws.onopen = () => {
-            demoMode = false;
-            if (demoInterval) clearInterval(demoInterval);
-            setConnected(true);
-            if (reconnectTimer) { clearTimeout(reconnectTimer); reconnectTimer = null; }
+            reconnectDelay = 1000;
+            if (demoInterval) {
+                clearInterval(demoInterval);
+                demoInterval = null;
+            }
+            setConnected(true, false);
+            if (reconnectTimer) {
+                clearTimeout(reconnectTimer);
+                reconnectTimer = null;
+            }
         };
         ws.onmessage = (e) => {
-            try { renderAll(JSON.parse(e.data)); } catch (err) { console.error(err); }
+            try {
+                renderAll(JSON.parse(e.data));
+            } catch (err) {
+                console.error(err);
+            }
         };
         ws.onclose = () => {
-            if (!demoMode) setConnected(false);
-            reconnectTimer = setTimeout(connectWS, 4000);
+            if (!demoMode) setConnected(false, false);
+            scheduleReconnect();
         };
-        ws.onerror = () => ws.close();
+        ws.onerror = () => {
+            try { ws.close(); } catch {}
+        };
     }
 
     async function poll() {
-        if (demoMode) return;
+        if (ws && ws.readyState === WebSocket.OPEN) return;
         try {
             const [liveR, histR] = await Promise.all([
-                fetch('/api/live').then(r => { if (!r.ok) throw new Error(); return r.json() }),
-                fetch('/api/history?n=100').then(r => r.json()),
+                fetch('/api/live').then(r => {
+                    if (!r.ok) throw new Error('Network response not ok');
+                    return r.json();
+                }),
+                fetch('/api/history?limit=100').then(r => r.ok ? r.json() : { history: [] }),
             ]);
             liveR.history_tail = histR.history || [];
+            if (demoInterval) {
+                clearInterval(demoInterval);
+                demoInterval = null;
+            }
             renderAll(liveR);
-            setConnected(true);
+            setConnected(true, false);
         } catch {
-            console.warn("Backend API unavailable. Starting Vercel Client-Side AI Mode.");
+            console.warn("Backend API unavailable. Starting explicit DEMO simulation mode.");
             startDemoSimulation();
         }
     }

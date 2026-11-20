@@ -95,5 +95,6 @@ check_untyped_defs = true
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 python_files = ["test_*.py"]
+pythonpath = ["src"]
 asyncio_default_fixture_loop_scope = "function"
 addopts = "-v --cov=aidax --cov-report=term-missing"

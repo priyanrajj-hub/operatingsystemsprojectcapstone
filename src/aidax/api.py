@@ -198,6 +198,70 @@ def api_live() -> JSONResponse:
     )
 
 
+@app.get("/api/health")
+def api_health() -> JSONResponse:
+    """System health check endpoint."""
+    return JSONResponse({"status": "ok", "service": "aidax-dashboard", "version": "1.0.0"})
+
+
+@app.get("/api/system")
+def api_system() -> JSONResponse:
+    """Return live host system CPU, memory, and topology metrics."""
+    return JSONResponse(get_system_health())
+
+
+@app.get("/api/processes")
+def api_processes() -> JSONResponse:
+    """Return list of active processes tracked in pids.txt."""
+    procs: list[dict[str, Any]] = []
+    if os.path.exists(PID_FILE):
+        try:
+            with open(PID_FILE, encoding="utf-8") as f:
+                for line in f:
+                    if not line.strip():
+                        continue
+                    try:
+                        item = json.loads(line)
+                        pid = item.get("pid")
+                        if pid and psutil.pid_exists(pid):
+                            p = psutil.Process(pid)
+                            item["cpu_percent"] = p.cpu_percent(interval=0.0)
+                            item["status"] = p.status()
+                            procs.append(item)
+                    except Exception:
+                        pass
+        except Exception as e:
+            logger.debug("Error reading PID file: %s", e)
+    return JSONResponse({"processes": procs, "count": len(procs)})
+
+
+@app.get("/api/scheduler/status")
+def api_scheduler_status() -> JSONResponse:
+    """Return scheduler operational state and process counts."""
+    pids_count = 0
+    if os.path.exists(PID_FILE):
+        try:
+            with open(PID_FILE, encoding="utf-8") as f:
+                pids_count = sum(1 for line in f if line.strip())
+        except Exception:
+            pass
+
+    return JSONResponse(
+        {
+            "status": "running" if pids_count > 0 else "idle",
+            "tracked_processes": pids_count,
+            "log_file_present": os.path.exists(LOG_FILE),
+            "stats_file_present": os.path.exists(BANDIT_STATS_FILE),
+        }
+    )
+
+
+@app.get("/api/scheduler/stats")
+def api_scheduler_stats() -> JSONResponse:
+    """Alias for /api/bandit-stats."""
+    return api_bandit_stats()
+
+
 @app.get("/api/history")
 def api_history(limit: int = 100) -> JSONResponse:
     """Return historical time series data for telemetry charting."""

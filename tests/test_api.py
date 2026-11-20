@@ -83,3 +83,25 @@ def test_get_system_health() -> None:
     assert "memory_percent" in health
     assert "cpu_count_logical" in health
     assert isinstance(health["memory_percent"], (int, float))
+
+
+def test_api_health_and_system_endpoints() -> None:
+    client = TestClient(app)
+    res_health = client.get("/api/health")
+    assert res_health.status_code == 200
+    assert res_health.json()["status"] == "ok"
+
+    res_system = client.get("/api/system")
+    assert res_system.status_code == 200
+    assert "cpu_percent_overall" in res_system.json()
+
+    res_status = client.get("/api/scheduler/status")
+    assert res_status.status_code == 200
+    assert "status" in res_status.json()
+
+    res_stats = client.get("/api/scheduler/stats")
+    assert res_stats.status_code == 200
+
+    res_procs = client.get("/api/processes")
+    assert res_procs.status_code == 200
+    assert "processes" in res_procs.json()
