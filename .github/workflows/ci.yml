@@ -71,5 +71,11 @@ jobs:
       - name: Run Mypy Type Check
         run: mypy src
 
+      - name: Verify Paper Integrity (No Fabricated Numbers)
+        run: python scripts/check_paper_integrity.py
+
+      - name: Verify Deployment Configuration
+        run: python scripts/check_deployment_config.py
+
       - name: Run Pytest Suite with Coverage
         run: pytest --cov=aidax --cov-report=xml --cov-report=term-missing

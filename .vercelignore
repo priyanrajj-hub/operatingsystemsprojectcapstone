@@ -1,52 +1,99 @@
 # ==============================================================================
-# AI-DAX Vercel Deployment Exclusions
-# Excludes local machine scheduling kernels, evaluation harnesses, tests & secrets
+# AI-DAX Vercel Deployment Exclusions (.vercelignore)
+# Target: Static Dashboard Frontend (Hosted on Vercel)
+# Separates local OS affinity scheduling engine & tests from cloud static dashboard
 # ==============================================================================
 
-# Secrets and local environments
+# ------------------------------------------------------------------------------
+# 1. Local Python Scheduling Engine & Backend Services
+# ------------------------------------------------------------------------------
+/src/
+/api/
+/config/
+/scripts/
+/tests/
+
+# ------------------------------------------------------------------------------
+# 2. Research Assets, LaTeX Paper & Benchmarking Datasets
+# ------------------------------------------------------------------------------
+/docs/
+/paper/
+/results/
+/data/
+/checkpoints/
+
+# ------------------------------------------------------------------------------
+# 3. Container & Kubernetes Infrastructure
+# ------------------------------------------------------------------------------
+/docker/
+/k8s/
+/Dockerfile
+/docker-compose.yml
+/Makefile
+/.github/
+
+# ------------------------------------------------------------------------------
+# 4. Secrets, Credentials & Local Environments
+# ------------------------------------------------------------------------------
 .env*
 !.env.example
 *.pem
 *.key
 *.cert
+*.crt
+*.pfx
+*.p12
 credentials.json
+service-account*.json
+*token*.json
+client_secrets*.json
 
-# Local Python backend source (runs natively on local machine for OS affinity)
-src/
-tests/
-docs/
-scripts/
-paper/
-results/
-checkpoints/
-k8s/
-.github/
-
-# Development virtual environments & caches
-.venv/
-venv/
-__pycache__/
-*.pyc
+# ------------------------------------------------------------------------------
+# 5. Python Build Systems, Packaging & Virtual Environments
+# ------------------------------------------------------------------------------
+/.venv/
+/venv/
+/env/
+/__pycache__/
+*.py[cod]
 .pytest_cache/
-.ruff_cache/
 .mypy_cache/
+.ruff_cache/
 *.egg-info/
+/dist/
+/build/
+/pyproject.toml
+/requirements*.txt
 
-# Shell scripts and batch runners
-*.sh
-*.bat
-Dockerfile
-docker-compose.yml
+# ------------------------------------------------------------------------------
+# 6. Developer Tooling & Operating System Files
+# ------------------------------------------------------------------------------
+.idea/
+.vscode/
+.DS_Store
+Thumbs.db
+ehthumbs.db
+.editorconfig
+.pre-commit-config.yaml
+.secrets.baseline
+/README.md
+/SECURITY.md
 
-# Evaluation logs & telemetry dumps
-*.log
-*.csv
-pids.txt
-bandit_stats.json
-*.db
-tmp*
-*.txt
+# ------------------------------------------------------------------------------
+# 7. Local Runtime Telemetry & Database Files (Local Agent only)
+# ------------------------------------------------------------------------------
+/pids.txt
+/bandit_stats.json
+/scheduler_log.csv
+/env.json
+/*.db
+/*.sqlite
+/*.sqlite3
+/*.log
 
-# Documentation & configs not needed for cloud edge
-*.md
-config/
+# ------------------------------------------------------------------------------
+# 8. Unconditionally Preserve Static Frontend Assets
+# Guarantees that HTML, CSS, JS, images, icons, fonts, and manifests in static/ are deployed
+# ------------------------------------------------------------------------------
+!static/
+!static/**

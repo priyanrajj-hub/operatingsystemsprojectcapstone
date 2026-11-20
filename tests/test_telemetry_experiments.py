@@ -132,3 +132,22 @@ def test_experiment_runner_unsupported_condition() -> None:
     runner = ExperimentRunner(topology=topo)
     with pytest.raises(ValueError, match="Unknown condition 'invalid_algo'"):
         runner.run_condition_trial("invalid_algo", duration_seconds=1.0)
+
+
+def test_experiment_runner_real_workload_execution() -> None:
+    """Verify that ExperimentRunner spawns real workloads and records positive decisions & progress."""
+    topo = CPUTopology(
+        total_logical_cores=4,
+        total_physical_cores=4,
+        is_heterogeneous=True,
+        detection_method="mock",
+        confidence=1.0,
+        p_cores=[0, 1],
+        e_cores=[2, 3],
+        cores=[],
+    )
+    runner = ExperimentRunner(topology=topo)
+    res = runner.run_condition_trial("linucb", duration_seconds=1.2, cycle_interval_seconds=0.3)
+    assert res.total_decisions > 0
+    assert res.total_progress_iterations > 0
+    assert res.duration_seconds >= 1.0

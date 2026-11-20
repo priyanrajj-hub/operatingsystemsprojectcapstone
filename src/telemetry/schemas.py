@@ -23,6 +23,8 @@ class ProcessMetricSnapshot(BaseModel):
     core_affinity: list[int] = Field(default_factory=list)
     core_type: str = "UNKNOWN"
     workload_type: str = "UNKNOWN"
+    voluntary_ctx_switches: int = 0
+    involuntary_ctx_switches: int = 0
 
 
 class SchedulingDecisionPacket(BaseModel):
@@ -56,6 +58,8 @@ class SystemHealthSnapshot(BaseModel):
     e_core_utilization: float = 0.0
     jain_fairness_index: float = 1.0
     estimated_power_watts: float = 0.0
+    energy_mode: str = "ESTIMATED"
+    measured_energy_joules: float | None = None
     active_processes_count: int = 0
 
 

@@ -1,9 +1,10 @@
 # ==============================================================================
 # AI-DAX Comprehensive .gitignore
+# Production-grade Git ignore specification for research, development & deployment
 # ==============================================================================
 
 # ------------------------------------------------------------------------------
-# 1. Environment Variables, Secrets & Credentials
+# 1. Environment Files, Secrets & Private Credentials
 # ------------------------------------------------------------------------------
 .env
 .env.*
@@ -13,15 +14,19 @@
 .env.production
 .env.development
 .env.staging
-!.env.example
 static/.env*
 static/.env.local
 
-# Certificates, Keys & Cloud Credentials
+# Allow tracked template
+!.env.example
+
+# Private Certificates, SSH Keys & API Tokens
 *.pem
 *.key
 *.cert
 *.crt
+*.pfx
+*.p12
 id_rsa*
 id_ed25519*
 credentials.json
@@ -30,8 +35,11 @@ service-account*.json
 client_secrets*.json
 
 # ------------------------------------------------------------------------------
-# 2. Virtual Environments
+# 2. Python Virtual Environments & Build Artifacts
 # ------------------------------------------------------------------------------
+__pycache__/
+*.py[cod]
+*$py.class
 .venv/
 venv/
 env/
@@ -39,45 +47,7 @@ ENV/
 env.bak/
 venv.bak/
 
-# ------------------------------------------------------------------------------
-# 3. Vercel & Deployment Artifacts
-# ------------------------------------------------------------------------------
-.vercel/
-.vercel
-static/.vercel/
-static/.vercel
-
-# ------------------------------------------------------------------------------
-# 4. Security Scan Outputs (Protect against committing unredacted raw scan dumps)
-# ------------------------------------------------------------------------------
-docs/security/scan-output/*
-!docs/security/scan-output/.gitkeep
-!docs/security/scan-output/README.md
-
-# ------------------------------------------------------------------------------
-# 5. Byte-compiled, Optimized & Cache Files
-# ------------------------------------------------------------------------------
-__pycache__/
-*.py[cod]
-*$py.class
-.pytest_cache/
-.ruff_cache/
-.mypy_cache/
-
-# ------------------------------------------------------------------------------
-# 6. Test & Coverage Artifacts
-# ------------------------------------------------------------------------------
-.coverage
-.coverage.*
-htmlcov/
-nosetests.xml
-coverage.xml
-*.cover
-*.py,cover
-
-# ------------------------------------------------------------------------------
-# 7. Packaging & Distribution Artifacts
-# ------------------------------------------------------------------------------
+# Packaging & distribution
 dist/
 build/
 *.egg-info/
@@ -91,27 +61,53 @@ parts/
 var/
 sdist/
 
+# Static typing and linting caches
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+
+# Coverage and test reports
+.coverage
+.coverage.*
+htmlcov/
+nosetests.xml
+coverage.xml
+*.cover
+*.py,cover
+
 # ------------------------------------------------------------------------------
-# 8. Editor & Operating System Metadata
+# 3. IDE, Editor & Operating System Metadata
 # ------------------------------------------------------------------------------
 .idea/
 .vscode/
 *.swp
 *.swo
 *~
+*.bak
+*.tmp
 .DS_Store
 Thumbs.db
 ehthumbs.db
 
 # ------------------------------------------------------------------------------
-# 9. Logs, Console Dumps & Ephemeral Text Artifacts
+# 4. Runtime Artifacts & Dynamic Simulation Logs
 # ------------------------------------------------------------------------------
+pids.txt
+scheduler_log.csv
+bandit_stats.json
+env.json
+
+# Local databases (SQLite runtime files)
+*.db
+*.sqlite
+*.sqlite3
+
+# Log files and ephemeral terminal text dumps
 *.log
 pip_out.log
 push_out.log
 eval*.log
 tmp*
-*.tmp
 temp/
 *temp.txt
 clean_output.txt
@@ -127,15 +123,24 @@ static/vercel_out.txt
 static/verified_url.txt
 static/test_deploy.html
 
-# ------------------------------------------------------------------------------
-# 10. Runtime State & Transient Simulation Outputs
-# ------------------------------------------------------------------------------
-env.json
-pids.txt
-scheduler_log.csv
-bandit_stats.json
+# Security raw scan output (protect unredacted tool dumps)
+docs/security/scan-output/*
+!docs/security/scan-output/.gitkeep
+!docs/security/scan-output/README.md
 
 # ------------------------------------------------------------------------------
-# 11. Benchmark Raw Data Dumps
+# 5. Benchmark Output (Dynamic Runs & Profiler Dumps)
+# Preserve benchmark scripts, configs, documentation, and baseline datasets
 # ------------------------------------------------------------------------------
 results/raw/
+results/runs/
+*.prof
+*.out
+
+# ------------------------------------------------------------------------------
+# 6. Deployment Output (Vercel & Build Caches)
+# ------------------------------------------------------------------------------
+.vercel/
+.vercel
+static/.vercel/
+static/.vercel

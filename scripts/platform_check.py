@@ -87,7 +87,7 @@ def inspect_linux_hybrid_sysfs() -> dict[str, Any]:
     is_genuine_hybrid = False
 
     def parse_cpulist(text: str) -> list[int]:
-        cpus = []
+        cpus: list[int] = []
         for part in text.strip().split(","):
             if not part:
                 continue

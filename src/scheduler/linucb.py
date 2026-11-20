@@ -23,12 +23,12 @@ logger = logging.getLogger("aidax.scheduler.linucb")
 
 class SafeWelfordScaler:
     """
-    Welford's algorithm with zero-variance safeguards and frozen calibration.
-    Prevents moving coordinate system instabilities in online bandits by allowing
-    an initial calibration phase followed by parameter freezing.
+    Welford's algorithm with zero-variance safeguards, frozen calibration, and intercept.
+    Standardizes raw features to zero-mean unit-variance and appends a constant 1.0
+    intercept feature to allow linear models to learn arm baseline offsets.
     """
 
-    def __init__(self, dim: int, calibration_steps: int = 100, eps: float = 1e-4) -> None:
+    def __init__(self, dim: int, calibration_steps: int = 30, eps: float = 1e-4) -> None:
         self.dim = dim
         self.calibration_steps = calibration_steps
         self.eps = eps
@@ -41,7 +41,7 @@ class SafeWelfordScaler:
         """Update running mean and variance if not frozen."""
         if self.frozen:
             return
-        x = np.asarray(x, dtype=float)
+        x = np.asarray(x, dtype=float)[: self.dim]
         self.count += 1
         delta = x - self.mean
         self.mean += delta / self.count
@@ -56,13 +56,15 @@ class SafeWelfordScaler:
             )
 
     def transform(self, x: np.ndarray) -> np.ndarray:
-        """Standardize context: (x - mean) / (std + eps)."""
-        x = np.asarray(x, dtype=float)
+        """Standardize context: (x - mean) / (std + eps) and append 1.0 intercept."""
+        x = np.asarray(x, dtype=float)[: self.dim]
         if self.count < 2:
-            return x
-        variance = self.M2 / (self.count - 1)
-        std = np.sqrt(np.maximum(0.0, variance)) + self.eps
-        return (x - self.mean) / std
+            z = x
+        else:
+            variance = self.M2 / (self.count - 1)
+            std = np.sqrt(np.maximum(0.0, variance)) + self.eps
+            z = (x - self.mean) / std
+        return np.append(z, 1.0)
 
 
 class StableLinUCBArm:
@@ -141,6 +143,11 @@ class StableLinUCBBandit:
       - Action 0: Efficiency Core (E-core)
       - Action 1: Performance Core (P-core)
       - Action 2: Unpinned / Kernel CFS Fallback
+
+    Features:
+      - Intercept-augmented feature representation (dim + 1).
+      - Calibration warm-up phase with round-robin exploration.
+      - Selection-time scaled context caching for exact update-time reuse.
     """
 
     def __init__(
@@ -149,32 +156,46 @@ class StableLinUCBBandit:
         exploration_alpha: float = 1.0,
         num_arms: int = 3,
         seed: int = 42,
+        calibration_steps: int = 30,
     ) -> None:
         self.context_dim = context_dim
         self.exploration_alpha = exploration_alpha
         self.num_arms = num_arms
         self.seed = seed
         self.rng = np.random.default_rng(seed)
+        self.effective_dim = context_dim + 1  # includes appended 1.0 intercept
         self.arms = [
-            StableLinUCBArm(context_dim, exploration_alpha=exploration_alpha)
+            StableLinUCBArm(self.effective_dim, exploration_alpha=exploration_alpha)
             for _ in range(num_arms)
         ]
-        self.scaler = SafeWelfordScaler(dim=context_dim)
+        self.scaler = SafeWelfordScaler(dim=context_dim, calibration_steps=calibration_steps)
         self.total_decisions = 0
+        self._context_cache: dict[int, np.ndarray] = {}
 
-    def select_action(self, context: np.ndarray) -> tuple[int, float]:
+    def select_action(self, context: np.ndarray, pid: int = 0) -> tuple[int, float]:
         """Select arm with maximum Upper Confidence Bound score."""
-        self.scaler.update(context)
-        norm_context = self.scaler.transform(context)
-        scores = [arm.get_ucb_score(norm_context) for arm in self.arms]
+        # 1. Warm-up / calibration phase
+        if not self.scaler.frozen:
+            self.scaler.update(context)
+            action = self.scaler.count % self.num_arms
+            scaled_ctx = self.scaler.transform(context)
+            self._context_cache[pid] = scaled_ctx
+            return action, 0.0
+
+        # 2. Exploitation / Exploration LinUCB selection
+        scaled_ctx = self.scaler.transform(context)
+        self._context_cache[pid] = scaled_ctx
+        scores = [arm.get_ucb_score(scaled_ctx) for arm in self.arms]
         best_action = int(np.argmax(scores))
         return best_action, scores[best_action]
 
-    def update(self, action: int, context: np.ndarray, reward: float) -> None:
-        """Update selected arm parameters."""
+    def update(self, action: int, context: np.ndarray, reward: float, pid: int = 0) -> None:
+        """Update selected arm parameters reusing exact selection-time scaled context."""
         if 0 <= action < self.num_arms:
-            norm_context = self.scaler.transform(context)
-            self.arms[action].update(norm_context, reward)
+            scaled_ctx = self._context_cache.pop(pid, None)
+            if scaled_ctx is None:
+                scaled_ctx = self.scaler.transform(context)
+            self.arms[action].update(scaled_ctx, reward)
             self.total_decisions += 1
 
     def get_params_snapshot(self) -> dict[str, Any]:

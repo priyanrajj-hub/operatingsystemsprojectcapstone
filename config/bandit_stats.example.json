@@ -1,0 +1,10 @@
+{
+  "total_decisions": 0,
+  "heuristic_count": 0,
+  "bandit_count": 0,
+  "heuristic_pct": 0.0,
+  "bandit_pct": 0.0,
+  "cumulative_regret": 0.0,
+  "alpha_reward": 0.7,
+  "beta_reward": 0.3
+}

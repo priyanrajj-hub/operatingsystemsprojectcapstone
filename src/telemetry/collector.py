@@ -4,6 +4,7 @@ Background telemetry collection engine for CPU, memory, process stats, and power
 
 from __future__ import annotations
 
+import glob
 import logging
 import time
 
@@ -41,6 +42,61 @@ class TelemetryCollector:
     def __init__(self, topology: CPUTopology, base_idle_power_w: float = 15.0) -> None:
         self.topology = topology
         self.base_idle_power_w = base_idle_power_w
+        self._rapl_energy_files = glob.glob("/sys/class/powercap/intel-rapl*/energy_uj")
+        self._rapl_max_files = glob.glob("/sys/class/powercap/intel-rapl*/max_energy_range_uj")
+        self._last_rapl_time: float = time.time()
+        self._last_rapl_uj: int | None = None
+        self._rapl_available = self._probe_rapl()
+
+    def _probe_rapl(self) -> bool:
+        """Check if Linux RAPL powercap energy files exist and are readable."""
+        if not self._rapl_energy_files or not self._rapl_max_files:
+            return False
+        try:
+            with open(self._rapl_energy_files[0], encoding="utf-8") as f:
+                val = int(f.read().strip())
+                return val > 0
+        except Exception:
+            return False
+
+    def sample_rapl_energy(self) -> tuple[float | None, str]:
+        """
+        Sample delta energy in Joules using hardware RAPL counters.
+        Handles counter wraparound via max_energy_range_uj.
+        Returns (measured_joules, energy_mode).
+        """
+        if not self._rapl_available:
+            return None, "ESTIMATED"
+
+        now = time.time()
+        dt = now - self._last_rapl_time
+        if dt <= 0:
+            return None, "ESTIMATED"
+
+        try:
+            total_uj = 0
+            max_uj = 0
+            for ef, mf in zip(self._rapl_energy_files, self._rapl_max_files, strict=False):
+                with open(ef, encoding="utf-8") as f:
+                    total_uj += int(f.read().strip())
+                with open(mf, encoding="utf-8") as f:
+                    max_uj += int(f.read().strip())
+
+            if self._last_rapl_uj is not None:
+                if total_uj >= self._last_rapl_uj:
+                    delta_uj = total_uj - self._last_rapl_uj
+                else:
+                    delta_uj = (max_uj - self._last_rapl_uj) + total_uj
+                delta_joules = delta_uj / 1e6
+            else:
+                delta_joules = 0.0
+
+            self._last_rapl_uj = total_uj
+            self._last_rapl_time = now
+            return delta_joules, "MEASURED_RAPL"
+        except Exception as e:
+            logger.debug("RAPL read failed: %s; falling back to ESTIMATED", e)
+            return None, "ESTIMATED"
 
     def sample_system_health(self, active_managed_count: int = 0) -> SystemHealthSnapshot:
         """Sample hardware utilization across P-cores and E-cores."""
@@ -64,11 +120,17 @@ class TelemetryCollector:
         avg_e = float(sum(e_utils) / len(e_utils)) if e_utils else 0.0
         fairness = compute_jain_fairness(per_cpu)
 
-        # Estimated power: Idle baseline + P-core active component (approx 2.5W/core at 100%)
-        # + E-core active component (approx 0.8W/core at 100%)
-        p_active_w = sum(u / 100.0 * 2.5 for u in p_utils)
-        e_active_w = sum(u / 100.0 * 0.8 for u in e_utils)
-        estimated_power = round(self.base_idle_power_w + p_active_w + e_active_w, 2)
+        # RAPL Energy check
+        measured_joules, energy_mode = self.sample_rapl_energy()
+        if energy_mode == "MEASURED_RAPL" and measured_joules is not None:
+            now = time.time()
+            dt = max(0.001, now - self._last_rapl_time)
+            power_watts = round(measured_joules / dt, 2)
+        else:
+            # Estimated power proxy: baseline idle + active core power components
+            p_active_w = sum(u / 100.0 * 2.5 for u in p_utils)
+            e_active_w = sum(u / 100.0 * 0.8 for u in e_utils)
+            power_watts = round(self.base_idle_power_w + p_active_w + e_active_w, 2)
 
         return SystemHealthSnapshot(
             timestamp=time.time(),
@@ -78,7 +140,9 @@ class TelemetryCollector:
             p_core_utilization=round(avg_p, 2),
             e_core_utilization=round(avg_e, 2),
             jain_fairness_index=round(fairness, 4),
-            estimated_power_watts=estimated_power,
+            estimated_power_watts=power_watts,
+            energy_mode=energy_mode,
+            measured_energy_joules=measured_joules,
             active_processes_count=active_managed_count,
         )
 
@@ -94,6 +158,13 @@ class TelemetryCollector:
                 cpu_pct = float(p.cpu_percent(interval=None))
                 mem_mb = float(p.memory_info().rss / (1024.0 * 1024.0))
                 threads = p.num_threads()
+                try:
+                    ctx = p.num_ctx_switches()
+                    vol_ctx = ctx.voluntary
+                    invol_ctx = ctx.involuntary
+                except Exception:
+                    vol_ctx = 0
+                    invol_ctx = 0
                 try:
                     affinity = p.cpu_affinity()
                 except Exception:
@@ -118,6 +189,8 @@ class TelemetryCollector:
                 core_affinity=affinity,
                 core_type=core_type,
                 workload_type=managed.workload_type,
+                voluntary_ctx_switches=vol_ctx,
+                involuntary_ctx_switches=invol_ctx,
             )
         except (psutil.NoSuchProcess, psutil.AccessDenied, psutil.ZombieProcess):
             return None

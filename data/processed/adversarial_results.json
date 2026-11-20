@@ -1,16 +1,33 @@
 {
+  "n_seeds": 15,
   "n_steps": 200,
+  "detector_evaluation": {
+    "true_positive_rate": 1.0,
+    "false_positive_rate": 0.0,
+    "threshold": 3.5
+  },
   "clean_baseline": {
-    "optimal_p_core_allocation_ratio": 0.47
+    "mean_optimal_allocation_ratio": 0.9967,
+    "ci_95": [
+      0.9942,
+      0.9991
+    ]
   },
   "attacked_without_defense": {
-    "optimal_p_core_allocation_ratio": 0.475,
-    "allocation_degradation_pct": -1.06
+    "mean_optimal_allocation_ratio": 1.0,
+    "ci_95": [
+      1.0,
+      1.0
+    ],
+    "allocation_degradation_pct": 0.0
   },
   "attacked_with_defense": {
-    "optimal_p_core_allocation_ratio": 0.47,
+    "mean_optimal_allocation_ratio": 1.0,
+    "ci_95": [
+      1.0,
+      1.0
+    ],
     "recovery_pct": 100.0,
-    "anomalies_detected": 200,
-    "updates_throttled": 0
+    "mean_defense_latency_us": 4.95
   }
 }
