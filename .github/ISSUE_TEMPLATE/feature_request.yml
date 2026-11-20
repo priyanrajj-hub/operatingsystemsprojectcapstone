@@ -1,0 +1,26 @@
+name: Feature Request
+description: Suggest an idea or enhancement for AI-DAX Lite
+labels: ["enhancement"]
+body:
+  - type: markdown
+    attributes:
+      value: Thank you for proposing an enhancement to AI-DAX Lite!
+  - type: textarea
+    id: problem
+    attributes:
+      label: Problem or Motivation
+      description: Is your feature request related to a problem or research inquiry?
+    validations:
+      required: true
+  - type: textarea
+    id: solution
+    attributes:
+      label: Proposed Solution
+      description: Describe the solution or scheduling feature you would like to see.
+    validations:
+      required: true
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Alternatives Considered
+      description: Any alternative designs or implementations you have considered.
