@@ -2,7 +2,7 @@
 
 This document outlines the security controls, authentication mechanisms, and defenses implemented across the AI-DAX Lite platform.
 
-For vulnerability disclosure procedures, please refer to the root [SECURITY.md](file:///C:/Users/PRIYANRAJ%20J/.gemini/antigravity/scratch/operatingsystemsprojectcapstone/SECURITY.md).
+For vulnerability disclosure procedures, please refer to [.github/SECURITY.md](file:///C:/Users/PRIYANRAJ%20J/.gemini/antigravity/scratch/operatingsystemsprojectcapstone/.github/SECURITY.md).
 
 ---
 
