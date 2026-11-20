@@ -89,6 +89,7 @@ static/test_deploy.html
 # ==============================================================================
 # Runtime State & Dynamic Engine Outputs
 # ==============================================================================
+env.json
 pids.txt
 scheduler_log.csv
 bandit_stats.json
