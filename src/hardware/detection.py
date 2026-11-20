@@ -64,3 +64,6 @@ def get_cpu_topology(force_refresh: bool = False) -> CPUTopology:
         topology.confidence,
     )
     return topology
+
+
+detect_cpu_topology = get_cpu_topology
