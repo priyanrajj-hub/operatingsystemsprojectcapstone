@@ -27,7 +27,7 @@ install:
 run:
 	$(PYTHON) -m aidax.workload &
 	$(PYTHON) -m aidax.scheduler &
-	$(PYTHON) -m uvicorn aidax.api:app --host 0.0.0.0 --port 8000
+	$(PYTHON) -m uvicorn aidax.api:app --host 127.0.0.1 --port 8000
 
 eval:
 	$(PYTHON) -m aidax.evaluate --duration 60 --trials 5

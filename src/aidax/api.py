@@ -362,7 +362,7 @@ def read_root() -> RedirectResponse:
     return RedirectResponse(url="/static/index.html")
 
 
-def run_server(host: str = "0.0.0.0", port: int = 8000) -> None:
+def run_server(host: str = "127.0.0.1", port: int = 8000) -> None:
     """Launch uvicorn server running the dashboard app."""
     import uvicorn
 
