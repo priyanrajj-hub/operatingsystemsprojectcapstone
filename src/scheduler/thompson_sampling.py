@@ -5,6 +5,7 @@ Contextual Linear Thompson Sampling (LinTS) baseline.
 from __future__ import annotations
 
 import logging
+import math
 
 import numpy as np
 import scipy.linalg
@@ -33,6 +34,8 @@ class LinTSArm:
     def sample_score(self, x: np.ndarray, rng: np.random.Generator) -> float:
         """Sample theta from posterior distribution N(mu, v^2 A^{-1}) and score context x."""
         mu, A_inv = self._solve_posterior()
+        x = np.asarray(x, dtype=float)
+        x = np.clip(x, -10.0, 10.0)
         # Stable multivariate normal sample via Cholesky of covariance
         cov = (self.v**2) * A_inv
         sampled_theta = rng.multivariate_normal(mu, cov)
@@ -40,15 +43,23 @@ class LinTSArm:
 
     def update(self, x: np.ndarray, reward: float) -> None:
         """Bayesian online update."""
+        x = np.asarray(x, dtype=float)
+        x = np.clip(x, -10.0, 10.0)
+        if not np.all(np.isfinite(x)) or not math.isfinite(reward):
+            logger.warning("Rejecting update with non-finite values in context or reward.")
+            return
+
         self.A += np.outer(x, x)
         self.b += reward * x
         self._dirty = True
 
 
 class LinTSBandit:
-    """Two-armed contextual Linear Thompson Sampling policy."""
+    """Multi-armed contextual Linear Thompson Sampling policy supporting 3 arms."""
 
-    def __init__(self, context_dim: int, num_arms: int = 2, v: float = 0.5, seed: int = 42) -> None:
+    def __init__(
+        self, context_dim: int = 4, num_arms: int = 3, v: float = 0.5, seed: int = 42
+    ) -> None:
         self.context_dim = context_dim
         self.num_arms = num_arms
         self.rng = np.random.default_rng(seed)
