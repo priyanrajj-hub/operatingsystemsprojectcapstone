@@ -14,6 +14,7 @@ from aidax.analysis import (
     paired_ttest,
     parse_log_text,
     summarise_condition,
+    holm_bonferroni_correction,
 )
 
 
@@ -109,3 +110,19 @@ def test_parse_log_text() -> None:
     assert len(parsed["baseline_cfs"]) == 1
     assert np.isclose(parsed["baseline_cfs"][0]["mean_cpu_pct"], 47.1)
     assert np.isclose(parsed["baseline_cfs"][0]["jain_fairness_index"], 0.5123)
+
+
+def test_paired_ttest_zero_variance_identical() -> None:
+    identical_a = [{"metric": 10.0}, {"metric": 10.0}, {"metric": 10.0}]
+    identical_b = [{"metric": 10.0}, {"metric": 10.0}, {"metric": 10.0}]
+    t_stat, p_val = paired_ttest(identical_a, identical_b, "metric")
+    assert t_stat == 0.0
+    assert p_val == 1.0
+
+
+def test_analysis_holm_bonferroni() -> None:
+    p_vals = [0.01, 0.04, 0.03]
+    results = holm_bonferroni_correction(p_vals, family_alpha=0.05)
+    assert len(results) == 3
+    # Smallest p (0.01) tested against 0.05/3 = 0.0167 -> Significant
+    assert results[0][1] is True

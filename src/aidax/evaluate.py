@@ -176,11 +176,14 @@ def run_condition_baseline_cfs(
     """Condition 1: Pure OS Completely Fair Scheduler (no affinity calls)."""
     logger.info("[CFS] Running baseline for %ds...", duration)
     spawned = spawn_workload(n_heavy=n_heavy, m_light=m_light, finite=True)
-    time.sleep(2)
-    pids_info = get_active_pids_safe()
-    metrics = collect_metrics(pids_info, duration)
-    terminate_workers([p for p, _ in spawned])
-    return metrics
+    try:
+        time.sleep(2)
+        pids_info = get_active_pids_safe()
+        metrics = collect_metrics(pids_info, duration)
+        return metrics
+    finally:
+        reset_all_affinities()
+        terminate_workers([p for p, _ in spawned])
 
 
 def run_condition_static_naive(
@@ -192,21 +195,22 @@ def run_condition_static_naive(
     logger.info("[STATIC] Running static naive for %ds...", duration)
     p_cores, e_cores = detect_cores()
     spawned = spawn_workload(n_heavy=n_heavy, m_light=m_light, finite=True)
-    time.sleep(2)
+    try:
+        time.sleep(2)
+        pids_info = get_active_pids_safe()
+        for pid, ptype in pids_info:
+            try:
+                p = psutil.Process(pid)
+                target = p_cores if ptype == "Heavy" else e_cores
+                p.cpu_affinity(target)
+            except Exception:
+                pass
 
-    pids_info = get_active_pids_safe()
-    for pid, ptype in pids_info:
-        try:
-            p = psutil.Process(pid)
-            target = p_cores if ptype == "Heavy" else e_cores
-            p.cpu_affinity(target)
-        except Exception:
-            pass
-
-    metrics = collect_metrics(pids_info, duration)
-    reset_all_affinities()
-    terminate_workers([p for p, _ in spawned])
-    return metrics
+        metrics = collect_metrics(pids_info, duration)
+        return metrics
+    finally:
+        reset_all_affinities()
+        terminate_workers([p for p, _ in spawned])
 
 
 def run_condition_heuristic_only(
@@ -218,39 +222,40 @@ def run_condition_heuristic_only(
     logger.info("[HEURISTIC] Running heuristic-only for %ds...", duration)
     p_cores, e_cores = detect_cores()
     spawned = spawn_workload(n_heavy=n_heavy, m_light=m_light, finite=True)
-    time.sleep(2)
-
-    pids_info = get_active_pids_safe()
-    proc_map: dict[int, dict[str, Any]] = {}
-    for pid, ptype in pids_info:
-        try:
-            p = psutil.Process(pid)
-            p.cpu_percent(interval=None)
-            proc_map[pid] = {"type": ptype, "proc": p}
-        except Exception:
-            pass
-
-    start = time.time()
-    while time.time() - start < duration:
-        for _pid, info in proc_map.items():
+    try:
+        time.sleep(2)
+        pids_info = get_active_pids_safe()
+        proc_map: dict[int, dict[str, Any]] = {}
+        for pid, ptype in pids_info:
             try:
-                p = info["proc"]
-                if not p.is_running():
-                    continue
-                cpu = p.cpu_percent(interval=0.0)
-                ctx = p.num_ctx_switches()
-                vol_rate = ctx.voluntary / max(time.time() - start, 1.0)
-                heur = "Heavy" if (cpu > 20 and vol_rate < 500) else "Light"
-                target = p_cores if heur == "Heavy" else e_cores
-                p.cpu_affinity(target)
+                p = psutil.Process(pid)
+                p.cpu_percent(interval=None)
+                proc_map[pid] = {"type": ptype, "proc": p}
             except Exception:
                 pass
-        time.sleep(1.0)
 
-    metrics = collect_metrics(pids_info, min(duration, 10))
-    reset_all_affinities()
-    terminate_workers([p for p, _ in spawned])
-    return metrics
+        start = time.time()
+        while time.time() - start < duration:
+            for _pid, info in proc_map.items():
+                try:
+                    p = info["proc"]
+                    if not p.is_running():
+                        continue
+                    cpu = p.cpu_percent(interval=0.0)
+                    ctx = p.num_ctx_switches()
+                    vol_rate = ctx.voluntary / max(time.time() - start, 1.0)
+                    heur = "Heavy" if (cpu > 20 and vol_rate < 500) else "Light"
+                    target = p_cores if heur == "Heavy" else e_cores
+                    p.cpu_affinity(target)
+                except Exception:
+                    pass
+            time.sleep(1.0)
+
+        metrics = collect_metrics(pids_info, min(duration, 10))
+        return metrics
+    finally:
+        reset_all_affinities()
+        terminate_workers([p for p, _ in spawned])
 
 
 def run_condition_bandit(
@@ -264,97 +269,98 @@ def run_condition_bandit(
     """Condition 4: Full online LinUCB contextual bandit adaptation."""
     logger.info("[BANDIT] Running LinUCB bandit for %ds...", duration)
     spawned = spawn_workload(n_heavy=n_heavy, m_light=m_light, finite=True)
-    time.sleep(2)
+    try:
+        time.sleep(2)
+        config = SchedulerConfig(
+            alpha_reward=alpha,
+            beta_reward=beta,
+            exploration=exploration,
+            cold_start_threshold=10,
+        )
+        scheduler = AIScheduler(config=config)
 
-    config = SchedulerConfig(
-        alpha_reward=alpha,
-        beta_reward=beta,
-        exploration=exploration,
-        cold_start_threshold=10,
-    )
-    scheduler = AIScheduler(config=config)
+        stop_event = threading.Event()
 
-    stop_event = threading.Event()
-
-    def scheduler_loop() -> None:
-        while not stop_event.is_set():
-            try:
-                cycle_start = time.time()
-                active = scheduler.get_active_pids()
-                for pid, _true_type in active:
-                    try:
-                        p = psutil.Process(pid)
-                        cpu = p.cpu_percent(interval=0.0)
-                        ctx = p.num_ctx_switches()
-
-                        if pid not in scheduler.history:
-                            p.cpu_percent(interval=None)
-                            scheduler.history[pid] = {
-                                "vol": ctx.voluntary,
-                                "invol": ctx.involuntary,
-                                "time": cycle_start,
-                                "last_switch_time": cycle_start,
-                            }
-                            scheduler.pid_decision_count[pid] = 0
-                            continue
-
-                        dt = cycle_start - scheduler.history[pid]["time"]
-                        if dt <= 0:
-                            continue
-
-                        vol_rate = (ctx.voluntary - scheduler.history[pid]["vol"]) / dt
-                        invol_rate = (ctx.involuntary - scheduler.history[pid]["invol"]) / dt
-                        time_since_switch = cycle_start - scheduler.history[pid]["last_switch_time"]
-                        current_core = scheduler._get_current_core_assignment(pid)
-
-                        scheduler.history[pid]["vol"] = ctx.voluntary
-                        scheduler.history[pid]["invol"] = ctx.involuntary
-                        scheduler.history[pid]["time"] = cycle_start
-
-                        raw_context = np.array(
-                            [cpu, vol_rate, invol_rate, time_since_switch, current_core],
-                            dtype=float,
-                        )
-                        scheduler.scaler.update(raw_context)
-                        context = scheduler.scaler.transform(raw_context)
-
-                        if pid in scheduler.pending:
-                            prev_action, prev_context = scheduler.pending[pid]
-                            reward = scheduler._compute_reward(prev_action, invol_rate)
-                            scheduler.bandit.update(prev_action, prev_context, reward)
-
-                        scheduler.pid_decision_count[pid] = (
-                            scheduler.pid_decision_count.get(pid, 0) + 1
-                        )
-                        if scheduler.pid_decision_count[pid] <= scheduler.cold_start_threshold:
-                            heur = "Heavy" if (cpu > 20 and vol_rate < 500) else "Light"
-                            action = 0 if heur == "Heavy" else 1
-                        else:
-                            action, _ = scheduler.bandit.select_action(context)
-
-                        scheduler.pending[pid] = (action, context)
-                        target = scheduler.p_cores if action == 0 else scheduler.e_cores
+        def scheduler_loop() -> None:
+            while not stop_event.is_set():
+                try:
+                    cycle_start = time.time()
+                    active = scheduler.get_active_pids()
+                    for pid, _true_type in active:
                         try:
-                            p.cpu_affinity(target)
+                            p = psutil.Process(pid)
+                            cpu = p.cpu_percent(interval=0.0)
+                            ctx = p.num_ctx_switches()
+
+                            if pid not in scheduler.history:
+                                p.cpu_percent(interval=None)
+                                scheduler.history[pid] = {
+                                    "vol": ctx.voluntary,
+                                    "invol": ctx.involuntary,
+                                    "time": cycle_start,
+                                    "last_switch_time": cycle_start,
+                                }
+                                scheduler.pid_decision_count[pid] = 0
+                                continue
+
+                            dt = cycle_start - scheduler.history[pid]["time"]
+                            if dt <= 0:
+                                continue
+
+                            vol_rate = (ctx.voluntary - scheduler.history[pid]["vol"]) / dt
+                            invol_rate = (ctx.involuntary - scheduler.history[pid]["invol"]) / dt
+                            time_since_switch = cycle_start - scheduler.history[pid]["last_switch_time"]
+                            current_core = scheduler._get_current_core_assignment(pid)
+
+                            scheduler.history[pid]["vol"] = ctx.voluntary
+                            scheduler.history[pid]["invol"] = ctx.involuntary
+                            scheduler.history[pid]["time"] = cycle_start
+
+                            raw_context = np.array(
+                                [cpu, vol_rate, invol_rate, time_since_switch, current_core],
+                                dtype=float,
+                            )
+                            scheduler.scaler.update(raw_context)
+                            context = scheduler.scaler.transform(raw_context)
+
+                            if pid in scheduler.pending:
+                                prev_action, prev_context = scheduler.pending[pid]
+                                reward = scheduler._compute_reward(prev_action, invol_rate)
+                                scheduler.bandit.update(prev_action, prev_context, reward)
+
+                            scheduler.pid_decision_count[pid] = (
+                                scheduler.pid_decision_count.get(pid, 0) + 1
+                            )
+                            if scheduler.pid_decision_count[pid] <= scheduler.cold_start_threshold:
+                                heur = "Heavy" if (cpu > 20 and vol_rate < 500) else "Light"
+                                action = 0 if heur == "Heavy" else 1
+                            else:
+                                action, _ = scheduler.bandit.select_action(context)
+
+                            scheduler.pending[pid] = (action, context)
+                            target = scheduler.p_cores if action == 0 else scheduler.e_cores
+                            try:
+                                p.cpu_affinity(target)
+                            except Exception:
+                                pass
                         except Exception:
                             pass
-                    except Exception:
-                        pass
-                time.sleep(1.0)
-            except Exception:
-                time.sleep(1.0)
+                    time.sleep(1.0)
+                except Exception:
+                    time.sleep(1.0)
 
-    t = threading.Thread(target=scheduler_loop, daemon=True)
-    t.start()
+        t = threading.Thread(target=scheduler_loop, daemon=True)
+        t.start()
 
-    pids_info = get_active_pids_safe()
-    metrics = collect_metrics(pids_info, duration)
+        pids_info = get_active_pids_safe()
+        metrics = collect_metrics(pids_info, duration)
 
-    stop_event.set()
-    t.join(timeout=5)
-    reset_all_affinities()
-    terminate_workers([p for p, _ in spawned])
-    return metrics
+        stop_event.set()
+        t.join(timeout=5)
+        return metrics
+    finally:
+        reset_all_affinities()
+        terminate_workers([p for p, _ in spawned])
 
 
 def compute_jain_fairness(cpu_times: list[float]) -> float:

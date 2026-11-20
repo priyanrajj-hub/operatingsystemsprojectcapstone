@@ -110,10 +110,32 @@ def terminate_workers(
     """Gracefully terminate worker processes and clean up tracking file."""
     target_workers = workers if workers is not None else _ACTIVE_WORKERS
     logger.info("Stopping %d workers...", len(target_workers))
+
+    psutil_procs: list[psutil.Process] = []
     for w in target_workers:
+        if w.pid and psutil.pid_exists(w.pid):
+            try:
+                psutil_procs.append(psutil.Process(w.pid))
+            except psutil.NoSuchProcess:
+                pass
         if w.is_alive():
             w.terminate()
-            w.join(timeout=5)
+            w.join(timeout=3)
+            if w.is_alive():
+                w.kill()
+                w.join(timeout=2)
+
+    if psutil_procs:
+        try:
+            gone, alive = psutil.wait_procs(psutil_procs, timeout=3)
+            for p in alive:
+                try:
+                    p.kill()
+                except (psutil.NoSuchProcess, psutil.AccessDenied):
+                    pass
+        except Exception as e:
+            logger.debug("Error waiting for procs: %s", e)
+
     target_workers.clear()
 
     if os.path.exists(pid_file):

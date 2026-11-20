@@ -21,6 +21,7 @@ import logging
 import os
 import re
 import sys
+import warnings
 from typing import Any
 
 import numpy as np
@@ -120,13 +121,53 @@ def paired_ttest(
     if len(vals_a) < 2:
         return None, None
 
-    # If differences are all zero, t is 0 and p is 1.0
-    diff = np.array(vals_a) - np.array(vals_b)
-    if np.all(diff == 0):
+    # If differences are all zero or variance is negligible, t is 0 and p is 1.0
+    diff = np.array(vals_a, dtype=float) - np.array(vals_b, dtype=float)
+    if np.allclose(diff, 0.0, atol=1e-12):
         return 0.0, 1.0
 
-    res = scipy_stats.ttest_rel(vals_a, vals_b)
-    return float(res.statistic), float(res.pvalue)
+    std_diff = float(np.std(diff, ddof=1))
+    if std_diff < 1e-12 or np.isnan(std_diff):
+        return 0.0, 1.0 if np.allclose(diff, 0.0) else 0.0
+
+    with warnings.catch_warnings():
+        warnings.simplefilter("ignore", category=RuntimeWarning)
+        res = scipy_stats.ttest_rel(vals_a, vals_b)
+    stat = float(res.statistic) if not np.isnan(res.statistic) else 0.0
+    pval = float(res.pvalue) if not np.isnan(res.pvalue) else 1.0
+    return stat, pval
+
+
+def holm_bonferroni_correction(
+    p_values: list[float], family_alpha: float = 0.05
+) -> list[tuple[float, bool]]:
+    """
+    Apply Holm-Bonferroni step-down correction for multiple comparisons.
+    Returns list of (adjusted_alpha_threshold, is_significant) corresponding to input p_values.
+    """
+    m = len(p_values)
+    if m == 0:
+        return []
+
+    indexed = sorted(enumerate(p_values), key=lambda x: x[1])
+    results = [False] * m
+    thresholds = [0.0] * m
+
+    for rank, (orig_idx, p_val) in enumerate(indexed):
+        k = rank + 1
+        adj_alpha = family_alpha / (m - k + 1)
+        thresholds[orig_idx] = adj_alpha
+
+        if p_val <= adj_alpha:
+            results[orig_idx] = True
+        else:
+            for subsequent_rank in range(rank, m):
+                sub_orig_idx = indexed[subsequent_rank][0]
+                results[sub_orig_idx] = False
+                thresholds[sub_orig_idx] = family_alpha / (m - subsequent_rank)
+            break
+
+    return [(thresholds[i], results[i]) for i in range(m)]
 
 
 def compute_relative_improvements(
