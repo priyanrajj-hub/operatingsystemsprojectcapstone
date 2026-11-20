@@ -48,7 +48,7 @@ def get_cpu_topology(force_refresh: bool = False) -> CPUTopology:
             total_logical_cores=total,
             total_physical_cores=total,
             is_heterogeneous=False,
-            detection_method="generic_os_fallback",
+            detection_method="simulated_partition_fallback",
             confidence=0.3,
             p_cores=list(range(half)),
             e_cores=list(range(half, total)),
@@ -56,6 +56,14 @@ def get_cpu_topology(force_refresh: bool = False) -> CPUTopology:
         )
 
     _CACHED_TOPOLOGY = topology
+    if not topology.is_heterogeneous:
+        logger.warning(
+            "SIMULATED PARTITION: Hardware topology does not verify native hybrid cores. "
+            "Partitioning %d logical cores [%s] vs [%s] in simulated benchmark mode.",
+            topology.total_logical_cores,
+            topology.p_cores,
+            topology.e_cores,
+        )
     logger.info(
         "Detected CPU topology: %d cores, method=%s, heterogeneous=%s, confidence=%.2f",
         topology.total_logical_cores,

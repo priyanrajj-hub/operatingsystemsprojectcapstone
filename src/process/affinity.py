@@ -6,12 +6,30 @@ from __future__ import annotations
 
 import logging
 import os
+import sys
 
 import psutil
 
 from process.registry import ManagedProcess
 
 logger = logging.getLogger("aidax.process.affinity")
+
+
+def set_process_affinity(pid: int, cpus: list[int]) -> bool:
+    """
+    Safely set affinity for a PID with platform guards.
+    Returns False gracefully on macOS or systems where cpu_affinity is unsupported.
+    """
+    try:
+        p = psutil.Process(pid)
+        if not hasattr(p, "cpu_affinity"):
+            logger.info("cpu_affinity not supported on platform %s; skipping.", sys.platform)
+            return False
+        p.cpu_affinity(cpus)
+        return True
+    except Exception as e:
+        logger.debug("Failed setting affinity for PID %d: %s", pid, e)
+        return False
 
 
 class AffinityController:

@@ -16,7 +16,6 @@ Features:
 from __future__ import annotations
 
 import argparse
-import glob
 import json
 import logging
 import os
@@ -230,51 +229,29 @@ class AIScheduler:
 
     def detect_cores(self) -> tuple[list[int], list[int]]:
         """
-        Attempt to read hardware topology from sysfs. Falls back to frequency
-        heuristics on Linux, and splits logical cores 50/50 on Windows/other.
+        Detect P-cores and E-cores using normalized hardware topology detection.
+        Labels unverified platforms as 'SIMULATED PARTITION'.
         """
-        p_cores: list[int] = []
-        e_cores: list[int] = []
-
         try:
-            core_types = glob.glob("/sys/devices/system/cpu/cpu*/topology/core_type")
-            for file in core_types:
-                cpu_id = int(file.split("cpu")[1].split("/")[0])
-                with open(file, encoding="utf-8") as f:
-                    c_type = int(f.read().strip())
-                if c_type == 0:
-                    p_cores.append(cpu_id)
-                elif c_type == 1:
-                    e_cores.append(cpu_id)
+            from hardware.detection import detect_cpu_topology
 
-            if p_cores and e_cores:
-                logger.info("Detected sysfs P-cores: %s, E-cores: %s", p_cores, e_cores)
-                return sorted(p_cores), sorted(e_cores)
-        except Exception:
-            pass
+            topo = detect_cpu_topology()
+            if topo.p_cores and topo.e_cores:
+                if not topo.is_heterogeneous:
+                    logger.warning(
+                        "SIMULATED PARTITION: Host CPU does not exhibit verified heterogeneous hardware topology. "
+                        "Scheduler operating in simulated P/E partition mode."
+                    )
+                return list(topo.p_cores), list(topo.e_cores)
+        except Exception as e:
+            logger.debug("Hardware topology module fallback in aidax.scheduler: %s", e)
 
-        try:
-            freqs: dict[int, int] = {}
-            freq_files = glob.glob("/sys/devices/system/cpu/cpu*/cpufreq/cpuinfo_max_freq")
-            for file in freq_files:
-                cpu_id = int(file.split("cpu")[1].split("/")[0])
-                with open(file, encoding="utf-8") as f:
-                    freqs[cpu_id] = int(f.read().strip())
-
-            if freqs:
-                unique_freqs = sorted(set(freqs.values()), reverse=True)
-                if len(unique_freqs) > 1:
-                    threshold = (unique_freqs[0] + unique_freqs[-1]) / 2
-                    p_cores = [c for c, f in freqs.items() if f > threshold]
-                    e_cores = [c for c, f in freqs.items() if f <= threshold]
-                    logger.info("Frequency fallback P-cores: %s, E-cores: %s", p_cores, e_cores)
-                    return sorted(p_cores), sorted(e_cores)
-        except Exception:
-            pass
-
-        logger.info("Hardware topology undetectable. Splitting adjacent cores 50/50.")
         total = os.cpu_count() or 4
         half = max(1, total // 2)
+        logger.warning(
+            "SIMULATED PARTITION: Hardware topology undetectable. Splitting %d logical cores 50/50.",
+            total,
+        )
         return list(range(half)), list(range(half, total))
 
     def get_active_pids(self) -> list[tuple[int, str]]:
