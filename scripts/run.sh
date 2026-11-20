@@ -5,29 +5,38 @@
 
 set -e
 
+# Change directory to project root if invoked from scripts/
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+ROOT_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"
+cd "$ROOT_DIR"
+
 echo "[*] Setting up AI-DAX Lite environment..."
 
-# Create venv if needed
-if [ ! -d "venv" ]; then
-    python3 -m venv venv
+# Prefer .venv, fallback to venv
+if [ -d ".venv" ]; then
+    source .venv/bin/activate
+elif [ -d "venv" ]; then
+    source venv/bin/activate
+else
+    python3 -m venv .venv
+    source .venv/bin/activate
+    pip install -q -e .
 fi
-source venv/bin/activate
-pip install -q -r requirements.txt
 
 echo "[*] Starting Workload Generator..."
-python3 workload_generator.py &
+python3 -m aidax.workload &
 WORKLOAD_PID=$!
 
 echo "[*] Starting AI Scheduler (LinUCB Bandit)..."
-python3 ai_scheduler.py &
+python3 -m aidax.scheduler &
 SCHEDULER_PID=$!
 
 # Cleanup handler
 function cleanup {
     echo ""
     echo "[*] Handling shutdown. Sending SIGTERM to stop processes safely..."
-    kill -TERM $SCHEDULER_PID 2>/dev/null
-    kill -TERM $WORKLOAD_PID 2>/dev/null
+    kill -TERM $SCHEDULER_PID 2>/dev/null || true
+    kill -TERM $WORKLOAD_PID 2>/dev/null || true
     echo "[*] Cleanup completed. Exiting..."
     exit
 }
@@ -35,7 +44,7 @@ function cleanup {
 trap cleanup EXIT INT TERM
 
 echo "[*] Launching Dashboard (http://localhost:8000)..."
-python3 -m uvicorn main:app --host 0.0.0.0 --port 8000
+python3 -m uvicorn aidax.api:app --host 0.0.0.0 --port 8000
 
 # Wait to catch termination signals correctly
 wait

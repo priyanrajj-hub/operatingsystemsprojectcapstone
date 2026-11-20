@@ -1,43 +1,56 @@
 """
 AI-DAX Lite: FastAPI Dashboard Backend
 ======================================
-Serves the premium HTML/JS frontend and provides REST + WebSocket endpoints
-for live CPU health monitoring and task management.
+Serves the HTML/JS frontend and provides REST + WebSocket endpoints
+for live CPU health monitoring, bandit telemetry, and emergency reset.
 
 Endpoints:
-  GET  /                  — Serve the static frontend
+  GET  /                  — Redirect to the static frontend
   GET  /api/live          — Latest scheduler state from CSV
-  GET  /api/history       — Last N rows for charting
-  POST /api/reset         — Emergency affinity reset
-  GET  /api/bandit-stats  — Current bandit parameters + regret + decision breakdown
-  WS   /ws/live           — WebSocket pushing updates every 1s
+  GET  /api/history       — Last N rows for time-series charting
+  POST /api/reset         — Emergency CPU affinity reset across all tracked tasks
+  GET  /api/bandit-stats  — Bandit parameters, regret, and decision ratios
+  POST /api/aizen         — Telemetry analysis panel
+  POST /api/jarvis        — Assistant interaction endpoint
+  WS   /ws/live           — WebSocket streaming metrics every 1s
 """
 
-import os
-import json
-import csv
+from __future__ import annotations
+
 import asyncio
+import csv
+import json
+import logging
+import os
 from io import StringIO
-from typing import List, Optional
+from pathlib import Path
+from typing import Any
 
 import psutil
-from fastapi import FastAPI, WebSocket, WebSocketDisconnect
-from fastapi.staticfiles import StaticFiles
-from fastapi.responses import FileResponse, JSONResponse, RedirectResponse
-from fastapi.middleware.cors import CORSMiddleware
-from pydantic import BaseModel
-import google.generativeai as genai
-import asyncio
-
-app = FastAPI(title="AI-DAX Lite Dashboard", version="2.0")
-
 from dotenv import load_dotenv
+from fastapi import FastAPI, WebSocket, WebSocketDisconnect
+from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import JSONResponse, RedirectResponse
+from fastapi.staticfiles import StaticFiles
+from pydantic import BaseModel
+
 load_dotenv()
 
-# Setup Gemini API (Add your GEMINI_API_KEY environment variable)
+logger = logging.getLogger("aidax.api")
+
+app = FastAPI(title="AI-DAX Lite Dashboard", version="1.0.0")
+
+# Optional Gemini Integration
 API_KEY = os.environ.get("GEMINI_API_KEY", "")
+_genai_available = False
 if API_KEY:
-    genai.configure(api_key=API_KEY)
+    try:
+        import google.generativeai as genai
+
+        genai.configure(api_key=API_KEY)
+        _genai_available = True
+    except Exception as e:
+        logger.warning("Could not initialize google.generativeai: %s", e)
 
 app.add_middleware(
     CORSMiddleware,
@@ -47,89 +60,99 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-LOG_FILE = 'scheduler_log.csv'
-PID_FILE = 'pids.txt'
-BANDIT_STATS_FILE = 'bandit_stats.json'
+LOG_FILE = os.environ.get("AIDAX_LOG_FILE", "scheduler_log.csv")
+PID_FILE = os.environ.get("AIDAX_PID_FILE", "pids.txt")
+BANDIT_STATS_FILE = os.environ.get("AIDAX_STATS_FILE", "bandit_stats.json")
 
-# ─────────────────────────────────────────────────────────────────────
-# Utilities
-# ─────────────────────────────────────────────────────────────────────
 
-def read_csv_safe(max_rows=300):
-    """Read log CSV defensively. Returns list of dicts."""
-    rows = []
+def read_csv_safe(max_rows: int = 300) -> list[dict[str, str]]:
+    """Read scheduler log CSV defensively, returning the most recent rows."""
+    rows: list[dict[str, str]] = []
     try:
         if not os.path.exists(LOG_FILE) or os.path.getsize(LOG_FILE) == 0:
             return rows
-        with open(LOG_FILE, 'r') as f:
+        with open(LOG_FILE, encoding="utf-8", errors="replace") as f:
             content = f.read()
         reader = csv.DictReader(StringIO(content))
         all_rows = list(reader)
         rows = all_rows[-max_rows:]
-    except Exception:
-        pass
+    except Exception as e:
+        logger.debug("Error reading CSV safe: %s", e)
     return rows
 
 
-def reset_all_affinities():
-    """Emergency: releases all tracked processes from specific core assignment."""
+def reset_all_affinities() -> int:
+    """Emergency reset: release all tracked processes from specific core affinities."""
     total_cores = os.cpu_count() or 4
     all_cores = list(range(total_cores))
     count = 0
-    if os.path.exists(PID_FILE):
-        try:
-            with open(PID_FILE, 'r') as f:
-                for line in f:
-                    if not line.strip():
-                        continue
-                    try:
-                        data = json.loads(line)
-                        pid = data['pid']
-                        start_time = data['start_time']
-                        p = psutil.Process(pid)
-                        if (p.create_time() == start_time and
-                                p.username() == psutil.Process().username()):
+
+    if not os.path.exists(PID_FILE):
+        return count
+
+    current_username: str | None = None
+    try:
+        current_username = psutil.Process().username()
+    except Exception:
+        pass
+
+    try:
+        with open(PID_FILE, encoding="utf-8") as f:
+            for line in f:
+                line = line.strip()
+                if not line:
+                    continue
+                try:
+                    data = json.loads(line)
+                    pid = data["pid"]
+                    start_time = data["start_time"]
+                    p = psutil.Process(pid)
+                    if p.create_time() == start_time:
+                        if current_username is None or p.username() == current_username:
                             p.cpu_affinity(all_cores)
                             count += 1
-                    except Exception:
-                        pass
-        except FileNotFoundError:
-            pass
+                except Exception:
+                    continue
+    except FileNotFoundError:
+        pass
+
     return count
 
 
-def get_system_health():
-    """Return system-level CPU health metrics."""
+def get_system_health() -> dict[str, Any]:
+    """Gather host CPU and memory health metrics."""
     cpu_percent_per_core = psutil.cpu_percent(percpu=True)
     cpu_freq = psutil.cpu_freq()
     mem = psutil.virtual_memory()
+
     return {
-        'cpu_percent_overall': psutil.cpu_percent(),
-        'cpu_percent_per_core': cpu_percent_per_core,
-        'cpu_count_logical': psutil.cpu_count(logical=True),
-        'cpu_count_physical': psutil.cpu_count(logical=False),
-        'cpu_freq_current': cpu_freq.current if cpu_freq else 0,
-        'cpu_freq_max': cpu_freq.max if cpu_freq else 0,
-        'cpu_freq_min': cpu_freq.min if cpu_freq else 0,
-        'memory_total_gb': round(mem.total / (1024**3), 2),
-        'memory_used_gb': round(mem.used / (1024**3), 2),
-        'memory_percent': mem.percent,
+        "cpu_percent_overall": psutil.cpu_percent(),
+        "cpu_percent_per_core": cpu_percent_per_core,
+        "cpu_count_logical": psutil.cpu_count(logical=True),
+        "cpu_count_physical": psutil.cpu_count(logical=False),
+        "cpu_freq_current": cpu_freq.current if cpu_freq else 0,
+        "cpu_freq_max": cpu_freq.max if cpu_freq else 0,
+        "cpu_freq_min": cpu_freq.min if cpu_freq else 0,
+        "memory_total_gb": round(mem.total / (1024**3), 2),
+        "memory_used_gb": round(mem.used / (1024**3), 2),
+        "memory_percent": mem.percent,
     }
 
 
-def read_bandit_stats():
-    """Read bandit stats JSON atomically written by the scheduler."""
+def read_bandit_stats() -> dict[str, Any]:
+    """Read bandit parameter state written atomically by the scheduler."""
     try:
         if os.path.exists(BANDIT_STATS_FILE):
-            with open(BANDIT_STATS_FILE, 'r') as f:
+            with open(BANDIT_STATS_FILE, encoding="utf-8") as f:
                 return json.load(f)
-    except Exception:
-        pass
+    except Exception as e:
+        logger.debug("Error reading bandit stats: %s", e)
+
     return {
-        'total_decisions': 0,
-        'heuristic_count': 0,
-        'bandit_count': 0,
-        'cumulative_regret': 0.0,
+        "total_decisions": 0,
+        "heuristic_count": 0,
+        "bandit_count": 0,
+        "cumulative_regret": 0.0,
     }
 
 
@@ -137,54 +160,58 @@ def read_bandit_stats():
 # REST Endpoints
 # ─────────────────────────────────────────────────────────────────────
 
-@app.get("/api/live")
-async def api_live():
-    """Latest state from scheduler log + system health."""
-    rows = read_csv_safe(max_rows=50)
-    if rows:
-        # Get the most recent timestamp group
-        latest_ts = rows[-1].get('timestamp', '')
-        recent = [r for r in rows if r.get('timestamp') == latest_ts]
-    else:
-        recent = []
 
-    return JSONResponse({
-        'processes': recent,
-        'system': get_system_health(),
-        'bandit': read_bandit_stats(),
-    })
+@app.get("/api/live")
+def api_live() -> JSONResponse:
+    """Return latest decision cycle state for monitored processes."""
+    rows = read_csv_safe(max_rows=50)
+    if not rows:
+        return JSONResponse({"processes": [], "timestamp": None, "count": 0})
+
+    latest_ts = rows[-1].get("timestamp", "")
+    recent = [r for r in rows if r.get("timestamp") == latest_ts]
+    return JSONResponse(
+        {
+            "processes": recent,
+            "timestamp": latest_ts,
+            "count": len(recent),
+        }
+    )
 
 
 @app.get("/api/history")
-async def api_history(n: int = 200):
-    """Last N rows for charting."""
-    rows = read_csv_safe(max_rows=min(n, 500))
-    return JSONResponse({'history': rows, 'count': len(rows)})
+def api_history(limit: int = 100) -> JSONResponse:
+    """Return historical time series data for telemetry charting."""
+    rows = read_csv_safe(max_rows=limit)
+    return JSONResponse({"history": rows, "count": len(rows)})
 
 
 @app.post("/api/reset")
-async def api_reset():
-    """Emergency affinity reset."""
-    count = reset_all_affinities()
-    return JSONResponse({
-        'status': 'ok',
-        'released': count,
-        'message': f'Released affinity constraints for {count} processes.'
-    })
+def api_reset() -> JSONResponse:
+    """Emergency endpoint: releases affinities across all tracked processes."""
+    released = reset_all_affinities()
+    return JSONResponse(
+        {
+            "status": "success",
+            "released_processes": released,
+            "message": f"Successfully cleared affinities on {released} process(es).",
+        }
+    )
 
 
 @app.get("/api/bandit-stats")
-async def api_bandit_stats():
-    """Current bandit parameters, cumulative regret, decision breakdown."""
+def api_bandit_stats() -> JSONResponse:
+    """Return LinUCB decision distribution and cumulative regret metrics."""
     stats = read_bandit_stats()
-    total = stats.get('heuristic_count', 0) + stats.get('bandit_count', 0)
+    total = stats.get("heuristic_count", 0) + stats.get("bandit_count", 0)
     if total > 0:
-        stats['heuristic_pct'] = round(stats['heuristic_count'] / total * 100, 1)
-        stats['bandit_pct'] = round(stats['bandit_count'] / total * 100, 1)
+        stats["heuristic_pct"] = round(stats["heuristic_count"] / total * 100, 1)
+        stats["bandit_pct"] = round(stats["bandit_count"] / total * 100, 1)
     else:
-        stats['heuristic_pct'] = 0
-        stats['bandit_pct'] = 0
+        stats["heuristic_pct"] = 0.0
+        stats["bandit_pct"] = 0.0
     return JSONResponse(stats)
+
 
 class TelemetryPayload(BaseModel):
     cpu_percent_overall: float
@@ -194,58 +221,107 @@ class TelemetryPayload(BaseModel):
     voice_query: str = ""
     language: str = "English"
 
+
 @app.post("/api/aizen")
-async def api_aizen(payload: TelemetryPayload):
-    if not API_KEY:
-        return JSONResponse({"health": "Aizen Offline: No API Key", "process": "Please set the GEMINI_API_KEY environment variable", "future": "Restart the Python backend after setting the key."})
-    prompt = f"You are 'Aizen', a deep-system OS kernel AI. CPU: {payload.cpu_percent_overall}% Memory: {payload.memory_percent}%. LinUCB acts: {payload.total_decisions} Regret: {payload.regret}\nProvide 3 concise insights: 1. Computer Health 2. Process Management Insights 3. Future Use & What can be done.\nReturn EXACTLY a JSON array with 3 string elements: [\"health\", \"process\", \"future\"]. Respond internally in English."
+async def api_aizen(payload: TelemetryPayload) -> JSONResponse:
+    """Aizen AI telemetry insights panel endpoint."""
+    if not API_KEY or not _genai_available:
+        return JSONResponse(
+            {
+                "health": "Aizen Offline: No API Key",
+                "process": "Please configure GEMINI_API_KEY in your .env file",
+                "future": "Restart the Python backend after setting the key.",
+            }
+        )
+
+    prompt = (
+        f"You are 'Aizen', a deep-system OS kernel AI. CPU: {payload.cpu_percent_overall}% "
+        f"Memory: {payload.memory_percent}%. LinUCB acts: {payload.total_decisions} "
+        f"Regret: {payload.regret}\nProvide 3 concise insights: 1. Computer Health "
+        f"2. Process Management Insights 3. Future Use & What can be done.\n"
+        "Return EXACTLY a JSON array with 3 string elements: "
+        '["health", "process", "future"]. Respond in English.'
+    )
     try:
+        import ast
+
+        import google.generativeai as genai
+
         model = genai.GenerativeModel("gemini-flash-lite-latest")
         resp = await asyncio.to_thread(model.generate_content, prompt)
-        import ast
-        val = ast.literal_eval(resp.text.strip().strip("```json").strip("```").strip())
+        raw_text = resp.text.strip()
+        if raw_text.startswith("```json"):
+            raw_text = raw_text[7:]
+        elif raw_text.startswith("```"):
+            raw_text = raw_text[3:]
+        if raw_text.endswith("```"):
+            raw_text = raw_text[:-3]
+        clean_text = raw_text.strip()
+        val = ast.literal_eval(clean_text)
         return JSONResponse({"health": val[0], "process": val[1], "future": val[2]})
     except Exception as e:
         err_str = str(e)
         if "429" in err_str or "quota" in err_str.lower():
-            return JSONResponse({"health": "System nominal (AI Cooldown Active)", "process": "Aizen intelligence is temporarily suppressing queries to preserve the hardware compute API quota limit.", "future": "Predictive analytics will automatically resume shortly once the developer cycle recovers."})
-        return JSONResponse({"health": "Error running Aizen AI", "process": err_str[:120], "future": ""})
+            return JSONResponse(
+                {
+                    "health": "System nominal (AI Cooldown Active)",
+                    "process": "Quota limit reached; analytics will resume automatically.",
+                    "future": "Core LinUCB scheduling operates independently of cloud LLMs.",
+                }
+            )
+        return JSONResponse(
+            {
+                "health": "Error running Aizen AI",
+                "process": err_str[:120],
+                "future": "",
+            }
+        )
+
 
 @app.post("/api/jarvis")
-async def api_jarvis(payload: TelemetryPayload):
-    if not API_KEY:
-        return JSONResponse({"response": "Speech recognition offline due to missing API key."})
-    prompt = f"You are Jarvis, a multilingual AI assistant. User says: '{payload.voice_query}'. Language requested: '{payload.language}'. Current CPU: {payload.cpu_percent_overall}%. Respond concisely in '{payload.language}' exclusively."
+async def api_jarvis(payload: TelemetryPayload) -> JSONResponse:
+    """Multilingual assistant endpoint."""
+    if not API_KEY or not _genai_available:
+        return JSONResponse({"response": "Speech assistant offline: missing GEMINI_API_KEY."})
+
+    prompt = (
+        f"You are Jarvis, an operating system assistant. User says: '{payload.voice_query}'. "
+        f"Language: '{payload.language}'. Current CPU: {payload.cpu_percent_overall}%. "
+        f"Respond concisely in '{payload.language}' exclusively."
+    )
     try:
+        import google.generativeai as genai
+
         model = genai.GenerativeModel("gemini-flash-lite-latest")
         resp = await asyncio.to_thread(model.generate_content, prompt)
         return JSONResponse({"response": resp.text.strip()})
-    except Exception as e:
-        return JSONResponse({"response": "Error reaching the AI server."})
+    except Exception:
+        return JSONResponse({"response": "Error reaching language model server."})
 
 
 # ─────────────────────────────────────────────────────────────────────
-# WebSocket
+# WebSocket Endpoint
 # ─────────────────────────────────────────────────────────────────────
+
 
 @app.websocket("/ws/live")
-async def ws_live(websocket: WebSocket):
-    """Push live updates every 1 second."""
+async def ws_live(websocket: WebSocket) -> None:
+    """Stream live process and telemetry updates every 1 second."""
     await websocket.accept()
     try:
         while True:
             rows = read_csv_safe(max_rows=50)
             if rows:
-                latest_ts = rows[-1].get('timestamp', '')
-                recent = [r for r in rows if r.get('timestamp') == latest_ts]
+                latest_ts = rows[-1].get("timestamp", "")
+                recent = [r for r in rows if r.get("timestamp") == latest_ts]
             else:
                 recent = []
 
             payload = {
-                'processes': recent,
-                'system': get_system_health(),
-                'bandit': read_bandit_stats(),
-                'history_tail': read_csv_safe(max_rows=100),
+                "processes": recent,
+                "system": get_system_health(),
+                "bandit": read_bandit_stats(),
+                "history_tail": read_csv_safe(max_rows=100),
             }
             await websocket.send_json(payload)
             await asyncio.sleep(1)
@@ -256,17 +332,42 @@ async def ws_live(websocket: WebSocket):
 
 
 # ─────────────────────────────────────────────────────────────────────
-# Static Files & Root
+# Static Files & Dashboard Entry
 # ─────────────────────────────────────────────────────────────────────
 
-# Mount static directory
-STATIC_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'static')
-if not os.path.exists(STATIC_DIR):
-    os.makedirs(STATIC_DIR)
 
-app.mount("/static", StaticFiles(directory=STATIC_DIR), name="static")
+def _find_static_dir() -> Path:
+    """Locate the static files directory across local runs and installations."""
+    candidates = [
+        Path.cwd() / "static",
+        Path(__file__).resolve().parent.parent.parent / "static",
+        Path(__file__).resolve().parent / "static",
+    ]
+    for c in candidates:
+        if c.is_dir() and (c / "index.html").exists():
+            return c
+    # Fallback default
+    fallback = Path.cwd() / "static"
+    fallback.mkdir(exist_ok=True)
+    return fallback
+
+
+STATIC_DIR = _find_static_dir()
+app.mount("/static", StaticFiles(directory=str(STATIC_DIR)), name="static")
 
 
 @app.get("/")
-def read_root():
+def read_root() -> RedirectResponse:
+    """Redirect root access to static index.html dashboard."""
     return RedirectResponse(url="/static/index.html")
+
+
+def run_server(host: str = "0.0.0.0", port: int = 8000) -> None:
+    """Launch uvicorn server running the dashboard app."""
+    import uvicorn
+
+    uvicorn.run("aidax.api:app", host=host, port=port, reload=False)
+
+
+if __name__ == "__main__":
+    run_server()

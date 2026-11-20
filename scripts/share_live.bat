@@ -1,4 +1,7 @@
 @echo off
+rem AI-DAX Lite - Live Public Sharing URL Generator
+cd /d "%~dp0\.."
+
 echo ====================================================
 echo   AI-DAX Lite - Live Public Sharing URL Generator
 echo ====================================================
