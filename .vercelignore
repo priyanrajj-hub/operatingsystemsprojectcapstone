@@ -1,6 +1,52 @@
-*.py
-requirements.txt
-*.bat
-*.sh
+# ==============================================================================
+# AI-DAX Vercel Deployment Exclusions
+# Excludes local machine scheduling kernels, evaluation harnesses, tests & secrets
+# ==============================================================================
+
+# Secrets and local environments
 .env*
+!.env.example
+*.pem
+*.key
+*.cert
+credentials.json
+
+# Local Python backend source (runs natively on local machine for OS affinity)
+src/
+tests/
+docs/
+scripts/
+paper/
+results/
+checkpoints/
+k8s/
+.github/
+
+# Development virtual environments & caches
+.venv/
+venv/
 __pycache__/
+*.pyc
+.pytest_cache/
+.ruff_cache/
+.mypy_cache/
+*.egg-info/
+
+# Shell scripts and batch runners
+*.sh
+*.bat
+Dockerfile
+docker-compose.yml
+
+# Evaluation logs & telemetry dumps
+*.log
+*.csv
+pids.txt
+bandit_stats.json
+*.db
+tmp*
+*.txt
+
+# Documentation & configs not needed for cloud edge
+*.md
+config/
