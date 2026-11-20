@@ -2,7 +2,7 @@ name: CI
 
 on:
   push:
-    branches: ["main", "chore/**", "feat/**", "fix/**"]
+    branches: ["main", "chore/**", "feat/**", "fix/**", "security/**", "research/**"]
   pull_request:
     branches: ["main"]
 
@@ -11,9 +11,35 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
+  security:
+    name: Security & Secret Audit
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Gitleaks Secret Scan
+        uses: gitleaks/gitleaks-action@v2
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Detect Secrets Baseline Verification
+        run: |
+          python -m pip install --upgrade pip
+          pip install detect-secrets
+          detect-secrets-hook --baseline .secrets.baseline $(git ls-files)
+
   test:
     name: Python ${{ matrix.python-version }} on ${{ matrix.os }}
     runs-on: ${{ matrix.os }}
+    needs: [security]
     strategy:
       fail-fast: false
       matrix:
