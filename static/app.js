@@ -296,6 +296,17 @@
         });
     }
 
+    function escapeHTML(str) {
+        if (str === null || str === undefined) return '';
+        return String(str).replace(/[&<>'"]/g, tag => ({
+            '&': '&amp;',
+            '<': '&lt;',
+            '>': '&gt;',
+            "'": '&#39;',
+            '"': '&quot;'
+        }[tag] || tag));
+    }
+
     function renderTable(procs) {
         if (!procs || !procs.length) {
             tableBody.innerHTML = '<tr><td colspan="9" class="table-empty">Waiting for scheduler data…</td></tr>';
@@ -307,10 +318,10 @@
             const reward = parseFloat(p.reward || 0);
             const rwdColor = reward >= 0 ? '#00f2fe' : '#f87171';
             return `<tr>
-                <td>${p.pid || '—'}</td>
-                <td style="color:${isP ? '#00c6ff' : '#a18cd1'}">${p.true_type || '—'}</td>
-                <td><span class="chip chip--${isP ? 'p' : 'e'}">${p.action || '—'}</span></td>
-                <td><span class="chip chip--${isBand ? 'band' : 'heur'}">${p.decision_source || '—'}</span></td>
+                <td>${escapeHTML(p.pid || '—')}</td>
+                <td style="color:${isP ? '#00c6ff' : '#a18cd1'}">${escapeHTML(p.true_type || '—')}</td>
+                <td><span class="chip chip--${isP ? 'p' : 'e'}">${escapeHTML(p.action || '—')}</span></td>
+                <td><span class="chip chip--${isBand ? 'band' : 'heur'}">${escapeHTML(p.decision_source || '—')}</span></td>
                 <td>${parseFloat(p.cpu_percent || 0).toFixed(1)}%</td>
                 <td>${parseFloat(p.vol_ctx_rate || 0).toFixed(0)}</td>
                 <td>${parseFloat(p.invol_ctx_rate || 0).toFixed(0)}</td>
@@ -477,8 +488,9 @@
     }
 
     function connectWS() {
-        // Force the Vercel hosted site to tunnel connection back to the user's localhost running the python server
-        const wsUrl = `ws://localhost:8000/ws/live`;
+        const proto = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+        const host = window.location.host || '127.0.0.1:8000';
+        const wsUrl = `${proto}//${host}/ws/live`;
         ws = new WebSocket(wsUrl);
 
         ws.onopen = () => {
@@ -501,8 +513,8 @@
         if (demoMode) return;
         try {
             const [liveR, histR] = await Promise.all([
-                fetch('http://localhost:8000/api/live').then(r => { if (!r.ok) throw new Error(); return r.json() }),
-                fetch('http://localhost:8000/api/history?n=100').then(r => r.json()),
+                fetch('/api/live').then(r => { if (!r.ok) throw new Error(); return r.json() }),
+                fetch('/api/history?n=100').then(r => r.json()),
             ]);
             liveR.history_tail = histR.history || [];
             renderAll(liveR);
@@ -534,7 +546,7 @@
     async function fetchAizenInsights(sys, bandit) {
         if (!sys || !sys.cpu_percent_overall) return;
         try {
-            const resp = await fetch('http://localhost:8000/api/aizen', {
+            const resp = await fetch('/api/aizen', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
@@ -589,7 +601,7 @@
 
             try {
                 const sys = aizenDataCache ? aizenDataCache.system : {};
-                const resp = await fetch('http://localhost:8000/api/jarvis', {
+                const resp = await fetch('/api/jarvis', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({
